@@ -10,30 +10,86 @@ const props = defineProps<Props>()
 const statusConfig = computed(() => {
   switch (props.status) {
     case 'connected':
-      return { color: 'green', label: '已连接', icon: 'i-heroicons-signal' }
+      return {
+        color: 'var(--primary-color)',
+        bgColor: 'rgba(var(--primary-rgb), 0.1)',
+        label: '已连接',
+        connected: true
+      }
     case 'connecting':
-      return { color: 'yellow', label: '连接中...', icon: 'i-heroicons-arrow-path' }
+      return {
+        color: '#eab308',
+        bgColor: 'rgba(234, 179, 8, 0.1)',
+        label: '连接中...',
+        connected: false
+      }
     case 'error':
-      return { color: 'red', label: '连接错误', icon: 'i-heroicons-exclamation-triangle' }
+      return {
+        color: '#ef4444',
+        bgColor: 'rgba(239, 68, 68, 0.1)',
+        label: '连接错误',
+        connected: false
+      }
     default:
-      return { color: 'gray', label: '未连接', icon: 'i-heroicons-signal-slash' }
+      return {
+        color: '#9ca3af',
+        bgColor: 'rgba(156, 163, 175, 0.1)',
+        label: '未连接',
+        connected: false
+      }
   }
 })
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
-    <UChip
-      :color="statusConfig.color"
-      size="md"
-      inset
-    >
-      <template #default>
-        <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800">
-          <UIcon :name="statusConfig.icon" class="w-4 h-4" />
-          <span class="text-sm">{{ statusConfig.label }}</span>
-        </div>
-      </template>
-    </UChip>
+  <div class="connection-status">
+    <div
+      class="connection-dot"
+      :class="{ connected: statusConfig.connected }"
+      :style="{ backgroundColor: statusConfig.color }"
+    />
+    <span class="connection-label">{{ statusConfig.label }}</span>
   </div>
 </template>
+
+<style scoped>
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: v-bind('statusConfig.bgColor');
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.connection-dot.connected {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(var(--primary-rgb), 0);
+  }
+}
+
+.connection-label {
+  font-size: 0.85rem;
+  color: v-bind('statusConfig.color');
+  font-weight: 500;
+}
+
+/* 深色主题 */
+:global(.dark) .connection-status {
+  background: rgba(255, 255, 255, 0.05);
+}
+</style>
