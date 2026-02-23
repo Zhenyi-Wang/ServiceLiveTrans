@@ -21,7 +21,8 @@ const {
   activeSubtitle,
   confirmedSubtitles,
   connectionStatus,
-  handleMessage
+  handleMessage,
+  _setConnectionStatus
 } = useSubtitles()
 
 // WebSocket 连接
@@ -30,7 +31,6 @@ const { status } = useWebSocket({
 })
 
 // 同步 WebSocket 状态到 useSubtitles
-const { _setConnectionStatus } = useSubtitles()
 watch(status, (newStatus) => {
   _setConnectionStatus(newStatus)
 }, { immediate: true })
