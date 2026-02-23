@@ -48,3 +48,10 @@ pnpm generate  # 生成静态站点
 - `/speckit.plan` - 生成实现计划
 - `/speckit.tasks` - 创建任务列表
 - `/speckit.implement` - 执行实现
+
+## Active Technologies
+- TypeScript 5.x (Nuxt 4) + Nuxt 4, Vue 3, Nuxt UI, @nuxt/icon, crossws (WebSocket) (001-demo-interface)
+- N/A (演示阶段无需持久化，用户偏好使用 localStorage) (001-demo-interface)
+
+## Recent Changes
+- 001-demo-interface: Added TypeScript 5.x (Nuxt 4) + Nuxt 4, Vue 3, Nuxt UI, @nuxt/icon, crossws (WebSocket)

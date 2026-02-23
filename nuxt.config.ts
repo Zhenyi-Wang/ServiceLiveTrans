@@ -5,7 +5,8 @@ export default defineNuxtConfig({
 
   modules: [
     '@nuxt/ui',
-    '@nuxt/icon'
+    '@nuxt/icon',
+    '@vueuse/nuxt'
   ],
 
   app: {
@@ -19,5 +20,11 @@ export default defineNuxtConfig({
 
   colorMode: {
     preference: 'light'
+  },
+
+  nitro: {
+    experimental: {
+      websocket: true
+    }
   }
 })
