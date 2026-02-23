@@ -1,0 +1,19 @@
+{
+  "name": "servicelivetrans",
+  "version": "0.1.0",
+  "description": "实时语音转录服务 - 支持直播源和麦克风输入，提供网页后台控制、聚会预约、转录稿存储等功能",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "^4.3.1",
+    "vue": "^3.5.28",
+    "vue-router": "^4.6.4"
+  }
+}
