@@ -3,6 +3,11 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  modules: [
+    '@nuxt/ui',
+    '@nuxt/icon'
+  ],
+
   app: {
     head: {
       title: 'ServiceLiveTrans',
@@ -10,5 +15,9 @@ export default defineNuxtConfig({
         { name: 'description', content: '实时语音转录服务' }
       ]
     }
+  },
+
+  colorMode: {
+    preference: 'light'
   }
 })
