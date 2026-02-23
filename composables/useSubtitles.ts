@@ -8,6 +8,7 @@ export function useSubtitles() {
   // 字幕状态
   const activeSubtitle = ref<ActiveSubtitle | null>(null)
   const confirmedSubtitles = ref<ConfirmedSubtitle[]>([])
+  const lastCurrentEn = ref('')
 
   // 语言模式（持久化到 localStorage）
   const languageMode = useLocalStorage<LanguageMode>('languageMode', 'bilingual')
@@ -42,6 +43,7 @@ export function useSubtitles() {
           confirmedSubtitles.value.push(newSubtitle)
           // 清空正在转录的字幕
           activeSubtitle.value = null
+          lastCurrentEn.value = ''
         }
         break
 
@@ -55,11 +57,17 @@ export function useSubtitles() {
           }
         }
         break
+      case 'current_en':
+        if (message.data && 'enText' in message.data) {
+          lastCurrentEn.value = message.data.enText as string
+        }
+        break
 
       case 'clear':
         // 清空所有字幕
         activeSubtitle.value = null
         confirmedSubtitles.value = []
+        lastCurrentEn.value = ''
         break
     }
   }
@@ -79,6 +87,7 @@ export function useSubtitles() {
     // 状态
     activeSubtitle: readonly(activeSubtitle),
     confirmedSubtitles: readonly(confirmedSubtitles),
+    lastCurrentEn: readonly(lastCurrentEn),
     languageMode: readonly(languageMode),
     connectionStatus: readonly(connectionStatus),
 

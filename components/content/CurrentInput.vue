@@ -4,6 +4,7 @@ import type { ActiveSubtitle } from '~/types/subtitle'
 interface Props {
   language: 'chinese' | 'english'
   activeSubtitle: ActiveSubtitle | null
+  lastCurrentEn?: string
   fontSize: number
 }
 
@@ -20,7 +21,7 @@ const contentClasses = computed(() => ({
 const displayText = computed(() => {
   if (!props.activeSubtitle) return ''
   if (props.language === 'english') {
-    return props.activeSubtitle.translatedText || ''
+    return props.lastCurrentEn || props.activeSubtitle.translatedText || ''
   }
   return props.activeSubtitle.rawText || ''
 })
@@ -28,7 +29,6 @@ const displayText = computed(() => {
 
 <template>
   <div
-    v-if="activeSubtitle"
     class="current-input"
     :class="inputClasses"
   >

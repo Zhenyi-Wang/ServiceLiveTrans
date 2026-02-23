@@ -71,6 +71,12 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
           translatedText: currentEnglish
         }
       })
+      broadcast({
+        type: 'current_en',
+        data: {
+          enText: currentEnglish
+        }
+      })
 
       charIndex++
       characterTimer = setTimeout(outputNextChar, 100 + Math.random() * 100) // 100-200ms 每个字
@@ -107,6 +113,12 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
   broadcast({
     type: 'confirmed',
     data: confirmedSubtitle
+  })
+  broadcast({
+    type: 'current_en',
+    data: {
+      enText: ''
+    }
   })
 
   // 延迟后发送优化版本
@@ -205,6 +217,12 @@ export function clearSubtitles(): void {
 
   // 广播清空消息
   broadcast({ type: 'clear' })
+  broadcast({
+    type: 'current_en',
+    data: {
+      enText: ''
+    }
+  })
 }
 
 /**

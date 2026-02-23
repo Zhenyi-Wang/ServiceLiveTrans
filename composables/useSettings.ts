@@ -53,8 +53,8 @@ export function useSettings() {
   ]
 
   // 字号设置
-  const configChineseFontSize = useStorage('config-chinese-font-size', 1.3)
-  const configEnglishFontSize = useStorage('config-english-font-size', 1.2)
+  const configChineseFontSize = useStorage('config-chinese-font-size', 1.1)
+  const configEnglishFontSize = useStorage('config-english-font-size', 1.1)
 
   const fontSizeStep = 0.1
   const minFontSize = 0.8

@@ -1,10 +1,22 @@
 <script setup lang="ts">
-import type { ConfirmedSubtitle } from '~/types/subtitle'
+import type { Ref } from 'vue'
+interface ChineseSegment {
+  text: string
+  isOptimized: boolean
+}
+
+interface EnglishSegment {
+  text: string
+  isTranslating: boolean
+  id: string
+  hasContent: boolean
+}
 
 interface Props {
   language: 'chinese' | 'english'
-  subtitles: ConfirmedSubtitle[]
+  paragraphs: Array<Array<ChineseSegment | EnglishSegment> | null>
   fontSize: number
+  scrollContainerRef?: Ref<HTMLElement | null>
 }
 
 const props = defineProps<Props>()
@@ -13,65 +25,77 @@ defineEmits<{
   scroll: [event: Event]
 }>()
 
+const articleClasses = computed(() => ({
+  'chinese-article': props.language === 'chinese',
+  'english-article': props.language === 'english',
+  'flex-article': true
+}))
+
 const contentClasses = computed(() => ({
   'english-content': props.language === 'english'
 }))
 
-// 获取显示文本
-const getDisplayText = (subtitle: ConfirmedSubtitle) => {
-  if (props.language === 'chinese') {
-    return subtitle.optimizedText || subtitle.rawText
+const setScrollContainerRef = (el: HTMLElement | null) => {
+  if (props.scrollContainerRef) {
+    props.scrollContainerRef.value = el
   }
-  return subtitle.translatedText || ''
 }
 </script>
 
 <template>
   <div
     class="article-display"
+    :class="articleClasses"
+    :ref="setScrollContainerRef"
     @scroll="$emit('scroll', $event)"
   >
-    <TransitionGroup name="segment">
+    <div
+      v-for="(paragraph, index) in paragraphs"
+      :key="`${language}-${index}`"
+      class="article-paragraph"
+      :class="{ 'translating': language === 'english' && !paragraph }"
+    >
       <div
-        v-for="subtitle in subtitles"
-        :key="subtitle.id"
-        class="article-paragraph"
+        class="paragraph-content"
+        :class="contentClasses"
+        :style="{ fontSize: fontSize + 'rem' }"
       >
-        <div
-          class="paragraph-content"
-          :class="contentClasses"
-          :style="{ fontSize: fontSize + 'rem' }"
-        >
-          <!-- 中文段落显示 -->
-          <template v-if="language === 'chinese'">
+        <!-- 中文段落显示 -->
+        <template v-if="language === 'chinese'">
+          <TransitionGroup name="segment" tag="div" class="segments-container">
             <span
+              v-for="(segment, segIndex) in (paragraph as ChineseSegment[])"
+              :key="`cn-${index}-${segIndex}`"
               :class="[
-                subtitle.optimizedText ? 'optimized-text' : 'unoptimized-text',
+                segment.isOptimized ? 'optimized-text' : 'unoptimized-text',
                 'text-segment'
               ]"
             >
-              {{ subtitle.optimizedText || subtitle.rawText }}
+              {{ segment.text }}
             </span>
-          </template>
+          </TransitionGroup>
+        </template>
 
-          <!-- 英文段落显示 -->
-          <template v-else>
+        <!-- 英文段落显示 -->
+        <template v-else>
+          <template v-if="paragraph">
             <span
-              v-if="subtitle.translatedText"
-              class="text-segment english-segment has-translation"
+              v-for="(segment, segIndex) in (paragraph as EnglishSegment[])"
+              :key="segment.id || `en-${index}-${segIndex}`"
+              class="text-segment english-segment"
+              :class="{
+                'translating': segment.isTranslating,
+                'has-translation': segment.hasContent
+              }"
             >
-              <span class="translation-content">{{ subtitle.translatedText }}</span>
-            </span>
-            <span
-              v-else
-              class="text-segment english-segment pending"
-            >
-              <span class="translating-dots">...</span>
+              <span v-if="segment.hasContent" class="translation-content">{{ segment.text }} </span>
+              <span v-if="segment.isTranslating" class="translating-dots">... </span>
+              <span v-if="segment.hasContent && segIndex < (paragraph as EnglishSegment[]).length - 1"> </span>
             </span>
           </template>
-        </div>
+        </template>
       </div>
-    </TransitionGroup>
+    </div>
   </div>
 </template>
 
@@ -175,6 +199,10 @@ const getDisplayText = (subtitle: ConfirmedSubtitle) => {
 .segment-enter-to {
   opacity: 1;
   transform: translateY(0);
+}
+
+.segments-container {
+  display: inline;
 }
 
 /* 深色主题 */

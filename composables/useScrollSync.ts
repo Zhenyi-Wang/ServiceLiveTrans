@@ -50,6 +50,19 @@ export function useScrollSync(
    * 滚动到底部
    */
   const scrollToBottom = () => {
+    if (import.meta.client) {
+      if (!chineseScrollContainer.value || !englishScrollContainer.value) {
+        const containers = Array.from(
+          document.querySelectorAll<HTMLElement>('.article-display')
+        )
+        if (!chineseScrollContainer.value) {
+          chineseScrollContainer.value = containers[0] ?? null
+        }
+        if (!englishScrollContainer.value) {
+          englishScrollContainer.value = containers[1] ?? null
+        }
+      }
+    }
     if (chineseScrollContainer.value) {
       const chineseTarget = chineseScrollContainer.value.scrollHeight
       smoothScrollTo(chineseScrollContainer.value, chineseTarget, 500)

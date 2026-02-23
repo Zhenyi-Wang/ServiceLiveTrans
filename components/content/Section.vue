@@ -1,15 +1,32 @@
 <script setup lang="ts">
-import type { ActiveSubtitle, ConfirmedSubtitle } from '~/types/subtitle'
+import type { ActiveSubtitle } from '~/types/subtitle'
+import type { Ref } from 'vue'
+
+type ChineseSegment = {
+  text: string
+  isOptimized?: boolean
+}
+
+type EnglishSegment = {
+  text: string
+  isTranslating?: boolean
+  id?: string
+  hasContent?: boolean
+}
+
+type Paragraph = Array<ChineseSegment | EnglishSegment> | null
 
 interface Props {
   language: 'chinese' | 'english'
   title: string
-  subtitles: ConfirmedSubtitle[]
+  paragraphs: Array<Paragraph>
   activeSubtitle: ActiveSubtitle | null
+  lastCurrentEn?: string
   fontSize: number
   isFullscreen: boolean
   isWaitingForService: boolean
   autoScroll: boolean
+  scrollContainerRef?: Ref<HTMLElement | null>
 }
 
 const props = defineProps<Props>()
@@ -58,7 +75,7 @@ const sectionClasses = computed(() => ({
     >
       <!-- 欢迎信息 -->
       <div
-        v-if="isWaitingForService && subtitles.length === 0"
+        v-if="isWaitingForService && (!paragraphs || paragraphs.length === 0)"
         class="welcome-message"
       >
         {{ welcomeMessage }}
@@ -66,18 +83,19 @@ const sectionClasses = computed(() => ({
 
       <!-- 段落显示 -->
       <ContentParagraphDisplay
-        v-if="subtitles.length > 0"
+        v-if="paragraphs && paragraphs.length > 0"
         :language="language"
-        :subtitles="subtitles"
+        :paragraphs="paragraphs"
         :font-size="fontSize"
+        :scroll-container-ref="scrollContainerRef"
         @scroll="$emit('scroll', $event)"
       />
 
       <!-- 当前输入 -->
       <ContentCurrentInput
-        v-if="!isWaitingForService"
         :language="language"
         :active-subtitle="activeSubtitle"
+        :last-current-en="lastCurrentEn"
         :font-size="fontSize"
       />
     </div>

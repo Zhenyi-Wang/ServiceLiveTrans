@@ -3,7 +3,7 @@ import type { ActiveSubtitle, ConfirmedSubtitle } from './subtitle'
 /**
  * WebSocket 消息类型
  */
-export type WSMessageType = 'init' | 'active' | 'confirmed' | 'optimized' | 'clear'
+export type WSMessageType = 'init' | 'active' | 'confirmed' | 'optimized' | 'current_en' | 'clear'
 
 /**
  * 初始化消息数据
@@ -36,11 +36,18 @@ export interface WSOptimizedData {
 }
 
 /**
+ * 实时英文更新消息数据
+ */
+export interface WSCurrentEnData {
+  enText: string
+}
+
+/**
  * WebSocket 消息
  */
 export interface WSMessage {
   type: WSMessageType
-  data?: WSInitData | WSActiveData | WSConfirmedData | WSOptimizedData | null
+  data?: WSInitData | WSActiveData | WSConfirmedData | WSOptimizedData | WSCurrentEnData | null
 }
 
 /**

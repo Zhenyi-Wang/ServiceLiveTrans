@@ -18,6 +18,14 @@ export default defineWebSocketHandler({
       }
     }
     sendTo(peer, initMessage)
+    if (simulationState.activeSubtitle?.translatedText) {
+      sendTo(peer, {
+        type: 'current_en',
+        data: {
+          enText: simulationState.activeSubtitle.translatedText
+        }
+      })
+    }
   },
 
   close(peer) {

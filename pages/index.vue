@@ -20,6 +20,7 @@ const {
 const {
   activeSubtitle,
   confirmedSubtitles,
+  lastCurrentEn,
   connectionStatus,
   handleMessage,
   _setConnectionStatus
@@ -47,12 +48,26 @@ const {
 } = useFullscreen()
 
 // 联动滚动
-const { scrollToBottom } = useScrollSync(configSyncScroll, configAutoScroll)
+const {
+  scrollToBottom,
+  onChineseScroll,
+  onEnglishScroll,
+  watchDataAndScroll,
+  chineseScrollContainer,
+  englishScrollContainer
+} = useScrollSync(configSyncScroll, configAutoScroll)
+
+const { getChineseParagraphs, getEnglishParagraphs } = useParagraphLogic(
+  confirmedSubtitles,
+  computed(() => configParagraphLength.value)
+)
 
 // 是否等待服务
 const isWaitingForService = computed(() =>
   connectionStatus.value !== 'connected' || confirmedSubtitles.value.length === 0
 )
+
+watchDataAndScroll(activeSubtitle, confirmedSubtitles)
 
 // 处理字号变化
 const handleChineseFontSizeChange = (value: number) => {
@@ -111,16 +126,19 @@ const handleToggleAutoScroll = () => {
           v-show="!isEnglishFullscreen"
           language="chinese"
           title="中文 | Chinese"
-          :subtitles="confirmedSubtitles"
+          :paragraphs="getChineseParagraphs"
           :active-subtitle="activeSubtitle"
+          :last-current-en="lastCurrentEn"
           :font-size="configChineseFontSize"
           :is-fullscreen="isChineseFullscreen"
           :is-waiting-for-service="isWaitingForService"
           :auto-scroll="configAutoScroll"
+          :scroll-container-ref="chineseScrollContainer"
           @fullscreen="toggleChineseFullscreen"
           @font-size-change="handleChineseFontSizeChange"
           @toggle-auto-scroll="handleToggleAutoScroll"
           @scroll-to-bottom="scrollToBottom"
+          @scroll="onChineseScroll"
         />
 
         <!-- 分隔线 -->
@@ -133,16 +151,19 @@ const handleToggleAutoScroll = () => {
           v-show="!isChineseFullscreen"
           language="english"
           title="English"
-          :subtitles="confirmedSubtitles"
+          :paragraphs="getEnglishParagraphs"
           :active-subtitle="activeSubtitle"
+          :last-current-en="lastCurrentEn"
           :font-size="configEnglishFontSize"
           :is-fullscreen="isEnglishFullscreen"
           :is-waiting-for-service="isWaitingForService"
           :auto-scroll="configAutoScroll"
+          :scroll-container-ref="englishScrollContainer"
           @fullscreen="toggleEnglishFullscreen"
           @font-size-change="handleEnglishFontSizeChange"
           @toggle-auto-scroll="handleToggleAutoScroll"
           @scroll-to-bottom="scrollToBottom"
+          @scroll="onEnglishScroll"
         />
       </div>
     </div>
