@@ -82,7 +82,7 @@ const handleAutoScrollClick = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
+  padding: 4px 10px;
   background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
@@ -98,12 +98,12 @@ const handleAutoScrollClick = () => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .section-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-color);
   transition: all 0.2s ease;
@@ -125,12 +125,12 @@ const handleAutoScrollClick = () => {
 .font-size-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .control-btn {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 50%;
   background: var(--bg-color);
@@ -140,7 +140,7 @@ const handleAutoScrollClick = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .control-btn:hover:not(:disabled) {
@@ -241,16 +241,16 @@ const handleAutoScrollClick = () => {
 /* 响应式 */
 @media (max-width: 768px) {
   .section-header {
-    padding: 8px 15px;
+    padding: 3px 8px;
   }
 
   .section-title {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
   }
 
   .control-btn {
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
   }
 }
 </style>

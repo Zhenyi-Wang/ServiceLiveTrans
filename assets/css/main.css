@@ -146,10 +146,10 @@ body {
 
 /* ==================== 分隔线 ==================== */
 .divider {
-  height: 2px;
+  height: 1px;
   background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
   margin: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   flex-shrink: 0;
 }
 
@@ -163,12 +163,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 20px;
+  padding: 4px 10px;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   user-select: none;
-  height: 42px;
+  height: 40px;
   box-sizing: border-box;
 }
 
@@ -192,10 +192,6 @@ body {
   font-weight: 600;
 }
 
-.section-header h3.chinese-title {
-  color: var(--primary-color);
-}
-
 .section-header h3.clickable {
   cursor: pointer;
   transition: opacity 0.2s ease;
@@ -211,7 +207,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 15px 20px;
+  padding: 0;
   overflow-y: hidden;
   overflow-x: hidden;
 }
@@ -225,7 +221,7 @@ body {
 }
 
 .article-paragraph {
-  margin-bottom: 1.5em;
+  margin-bottom: 0.8em;
   position: relative;
   transition: all 0.3s ease;
 }
@@ -233,11 +229,11 @@ body {
 .paragraph-content {
   color: var(--text-color);
   font-size: var(--chinese-font-size);
-  line-height: 1.8;
+  line-height: 1.6;
   text-align: justify;
   text-indent: 2em;
   font-weight: 400;
-  margin-bottom: 0.5em;
+  margin-bottom: 0.3em;
   word-wrap: break-word;
   white-space: pre-wrap;
 }
@@ -284,9 +280,9 @@ body {
 .current-input {
   opacity: 0.6;
   font-style: italic;
-  border-left: 3px solid var(--primary-color);
-  padding: 0.5em 20px;
-  padding-left: 15px;
+  border-left: 2px solid var(--primary-color);
+  padding: 0.1em 10px;
+  padding-left: 8px;
   flex-shrink: 0;
   height: var(--chinese-input-height);
   overflow: hidden;
@@ -305,7 +301,7 @@ body {
   text-indent: 0.8em !important;
   color: var(--text-color);
   font-size: var(--chinese-font-size);
-  line-height: 1.8;
+  line-height: 1.6;
 }
 
 .english-input {
@@ -347,11 +343,11 @@ body {
   text-align: center;
   color: var(--text-secondary);
   font-style: italic;
-  padding: 40px 20px;
+  padding: 15px 10px;
   font-size: var(--chinese-font-size);
   max-width: 600px;
   margin: 0 auto;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .english-content .welcome-message {
@@ -369,7 +365,7 @@ body {
 }
 
 .dark .section-header h3 {
-  color: var(--primary-color);
+  color: var(--text-color);
 }
 
 .dark .english-segment {
@@ -389,40 +385,45 @@ body {
 }
 
 /* ==================== 滚动条样式 ==================== */
-.article-display,
-.menu-panel {
+* {
   scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
 }
 
-.article-display::-webkit-scrollbar,
-.menu-panel::-webkit-scrollbar {
-  width: 4px;
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-.article-display::-webkit-scrollbar-track,
-.menu-panel::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.article-display::-webkit-scrollbar-thumb,
-.menu-panel::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
 }
 
-.article-display::-webkit-scrollbar-thumb:hover,
-.menu-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
-.dark .article-display::-webkit-scrollbar-thumb,
-.dark .menu-panel::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
-.dark .article-display::-webkit-scrollbar-thumb:hover,
-.dark .menu-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ==================== 菜单/抽屉样式 ==================== */
@@ -735,16 +736,13 @@ input:checked + .slider:hover {
 
 /* ==================== 响应式设计 ==================== */
 @media (max-width: 768px) {
-  .content-area {
-    padding: 15px 20px;
-  }
-
   .section-header {
-    padding: 10px 20px;
+    padding: 4px 10px;
+    height: 40px;
   }
 
   .section-header h3 {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
   }
 
   .paragraph-content {
@@ -758,23 +756,19 @@ input:checked + .slider:hover {
   }
 
   .article-paragraph {
-    margin-bottom: 1.2em;
+    margin-bottom: 0.6em;
   }
 
   .welcome-message {
-    padding: 30px 15px;
+    padding: 12px 10px;
   }
 }
 
 @media (max-width: 480px) {
-  .content-area {
-    padding: 12px 15px;
-  }
-
   .paragraph-content {
     font-size: var(--chinese-font-size);
     text-indent: 1em;
-    line-height: 1.6;
+    line-height: 1.5;
   }
 
   .english-content .paragraph-content {
@@ -782,18 +776,19 @@ input:checked + .slider:hover {
   }
 
   .section-header {
-    padding: 8px 15px;
+    padding: 3px 8px;
+    height: 40px;
   }
 
   .section-header h3 {
-    font-size: 1rem;
+    font-size: 0.85rem;
   }
 
   .article-paragraph {
-    margin-bottom: 1em;
+    margin-bottom: 0.5em;
   }
 
   .welcome-message {
-    padding: 20px 10px;
+    padding: 10px 8px;
   }
 }

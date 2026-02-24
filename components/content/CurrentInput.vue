@@ -45,9 +45,8 @@ const displayText = computed(() => {
 
 <style scoped>
 .current-input {
-  padding: 0.5em 20px;
+  padding: 0.3em 20px 0.1em 20px;
   border-top: 1px solid var(--border-color);
-  background: rgba(248, 249, 250, 0.5);
   backdrop-filter: blur(5px);
   flex-shrink: 0;
   min-height: 2em;
@@ -55,12 +54,8 @@ const displayText = computed(() => {
   align-items: center;
 }
 
-.current-input.english-input {
-  background: rgba(240, 240, 240, 0.3);
-}
-
 .current-input-content {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-style: italic;
   text-indent: 0;
   line-height: 1.8;
@@ -73,10 +68,6 @@ const displayText = computed(() => {
   text-align: left;
 }
 
-.english-content.current-input-content {
-  color: var(--text-muted);
-}
-
 .blinking-cursor {
   color: var(--primary-color);
   font-weight: bold;
@@ -85,7 +76,7 @@ const displayText = computed(() => {
 }
 
 .truncated-text {
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 @keyframes blink {
@@ -114,8 +105,8 @@ const displayText = computed(() => {
 /* 响应式 */
 @media (max-width: 768px) {
   .current-input {
-    padding: 0.4em 15px;
-    min-height: 1.8em;
+    padding: 0.2em 15px 0.1em 15px;
+    min-height: 1.2em;
   }
 }
 </style>

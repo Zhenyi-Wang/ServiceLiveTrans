@@ -46,7 +46,7 @@ defineEmits<{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 10px;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   min-height: 40px;
@@ -55,7 +55,7 @@ defineEmits<{
 .header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .header-right {
@@ -66,7 +66,7 @@ defineEmits<{
 
 .header-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.85rem;
   color: var(--text-color);
   font-weight: 600;
   white-space: nowrap;
@@ -80,14 +80,14 @@ defineEmits<{
   font-size: 1rem;
   cursor: pointer;
   color: var(--text-color);
-  padding: 6px;
+  padding: 4px;
   border-radius: 6px;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 26px;
+  min-height: 26px;
   opacity: 0.7;
 }
 
@@ -122,18 +122,18 @@ defineEmits<{
 /* 响应式 */
 @media (max-width: 768px) {
   .header-content {
-    padding: 0 15px;
-    min-height: 36px;
+    padding: 0 8px;
+    min-height: 40px;
   }
 
   .header-title {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
 
   .menu-btn {
-    min-width: 28px;
-    min-height: 28px;
-    padding: 4px;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 3px;
   }
 }
 </style>

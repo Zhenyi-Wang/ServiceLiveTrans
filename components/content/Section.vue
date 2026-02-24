@@ -133,10 +133,10 @@ const sectionClasses = computed(() => ({
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 2em 20px;
+  padding: 1em 10px;
   color: var(--text-secondary);
   font-style: italic;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .english-content .welcome-message {
