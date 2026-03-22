@@ -78,7 +78,8 @@ export function useParagraphLogic(
   const getEnglishParagraphs = computed(() => {
     return getSegmentParagraphs.value.map(segmentGroup => {
       return segmentGroup.map(seg => ({
-        text: seg.enText || '',
+        text: seg.enText || '...',
+        isTranslating: !seg.enText,
         hasContent: !!seg.enText
       }))
     })

@@ -26,8 +26,9 @@ export interface WSConfirmedData {
  */
 export interface WSCurrentData {
   text: string           // 纯中文
-  enText: string         // 英文翻译
-  version: number        // 版本号（用于竞态处理）
+  enText: string         // 英文翻译（异步返回）
+  version: number        // 中文版本号（用于竞态处理）
+  enVersion: number      // 英文版本号（单独判断，有新翻译时更新）
 }
 
 /**

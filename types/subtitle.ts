@@ -5,7 +5,11 @@ export interface CurrentSubtitle {
   /** 当前转录文本（中文） */
   text: string
   /** 英文翻译 */
-  enText?: string
+  enText: string
+  /** 中文版本号 */
+  version: number
+  /** 英文版本号 */
+  enVersion: number
   /** 开始时间戳 */
   startTime: number
 }

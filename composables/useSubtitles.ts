@@ -6,9 +6,10 @@ export type LanguageMode = 'chinese' | 'english' | 'bilingual'
 
 export function useSubtitles() {
   // 字幕状态
-  const currentSubtitle = ref<CurrentSubtitle | null>(null)  // 当前输入（中文）
+  const currentSubtitle = ref<CurrentSubtitle | null>(null)  // 当前输入
   const confirmedSubtitles = ref<ConfirmedSubtitle[]>([])     // 已确认字幕列表
-  const currentVersion = ref(0)       // 当前英文版本号（用于竞态处理）
+  const currentVersion = ref(0)       // 中文版本号
+  const currentEnVersion = ref(0)     // 英文版本号（单独判断）
 
   // 语言模式（持久化到 localStorage）
   const languageMode = useLocalStorage<LanguageMode>('languageMode', 'bilingual')
@@ -22,49 +23,79 @@ export function useSubtitles() {
       case 'init':
         if (message.data && 'current' in message.data) {
           const data = message.data as any
-          currentSubtitle.value = data.current ? { text: data.current, startTime: Date.now() } : null
+          currentSubtitle.value = data.current ? {
+            text: data.current,
+            enText: '',
+            version: 0,
+            enVersion: 0,
+            startTime: Date.now()
+          } : null
           confirmedSubtitles.value = data.confirmed || []
         }
         break
 
       case 'current':
-        // 当前输入更新（包含中文、英文翻译和版本号）
         if (message.data && 'text' in message.data) {
           const data = message.data as any
-          // 竞态处理：只有版本号大于等于当前版本才更新
-          if (data.version >= currentVersion.value) {
+
+          // 中文版本更新
+          if (data.version > currentVersion.value) {
             currentVersion.value = data.version
             currentSubtitle.value = {
               text: data.text,
-              enText: data.enText,
+              enText: data.enText || currentSubtitle.value?.enText || '',
+              version: data.version,
+              enVersion: data.enVersion || currentEnVersion.value,
               startTime: Date.now()
+            }
+          }
+
+          // 英文版本更新（enText 非空且 enVersion 更新）
+          if (data.enText && data.enVersion > currentEnVersion.value) {
+            currentEnVersion.value = data.enVersion
+            if (currentSubtitle.value) {
+              currentSubtitle.value.enText = data.enText
+              currentSubtitle.value.enVersion = data.enVersion
             }
           }
         }
         break
 
       case 'confirmed':
-        // 已确认字幕（包含完整数据）
         if (message.data && 'id' in message.data) {
           const data = message.data as any
-          const newSubtitle: ConfirmedSubtitle = {
-            id: data.id,
-            text: data.text,
-            optimizedText: data.optimizedText,
-            enText: data.enText,
-            timestamp: Date.now()
+          const existingIndex = confirmedSubtitles.value.findIndex(s => s.id === data.id)
+
+          if (existingIndex !== -1) {
+            // 已存在：更新数据
+            confirmedSubtitles.value[existingIndex] = {
+              ...confirmedSubtitles.value[existingIndex],
+              optimizedText: data.optimizedText,
+              enText: data.enText
+            }
+          } else {
+            // 不存在：添加新字幕
+            const newSubtitle: ConfirmedSubtitle = {
+              id: data.id,
+              text: data.text,
+              optimizedText: data.optimizedText,
+              enText: data.enText,
+              timestamp: Date.now()
+            }
+            confirmedSubtitles.value.push(newSubtitle)
+            // 清空当前输入
+            currentSubtitle.value = null
+            currentVersion.value = 0
+            currentEnVersion.value = 0
           }
-          confirmedSubtitles.value.push(newSubtitle)
-          // 清空当前输入
-          currentSubtitle.value = null
         }
         break
 
       case 'clear':
-        // 清空所有字幕
         currentSubtitle.value = null
         confirmedSubtitles.value = []
         currentVersion.value = 0
+        currentEnVersion.value = 0
         break
     }
   }
@@ -85,6 +116,7 @@ export function useSubtitles() {
     currentSubtitle: readonly(currentSubtitle),
     confirmedSubtitles: readonly(confirmedSubtitles),
     currentVersion: readonly(currentVersion),
+    currentEnVersion: readonly(currentEnVersion),
     languageMode: readonly(languageMode),
     connectionStatus: readonly(connectionStatus),
 

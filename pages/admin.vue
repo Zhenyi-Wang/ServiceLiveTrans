@@ -27,7 +27,8 @@ const formFields = ref({
   subtitleId: '',      // 字幕 ID (confirmed)
   optimizedText: '',   // 优化文本 (confirmed)
   enText: '',         // 英文翻译 (current/confirmed)
-  version: 0          // 版本号 (current)
+  version: 0,         // 中文版本号 (current)
+  enVersion: 0        // 英文版本号 (current)
 })
 
 const wsMessageTypes = [
@@ -46,7 +47,8 @@ const getMessageData = () => {
       return {
         text: formFields.value.text,
         enText: formFields.value.enText,
-        version: formFields.value.version || 1
+        version: formFields.value.version || 1,
+        enVersion: formFields.value.enVersion || 0
       }
     case 'confirmed':
       return {
@@ -82,7 +84,7 @@ const handleSendWsMessage = async () => {
       content: data ? JSON.stringify(data).substring(0, 60) : '(no data)'
     })
     // 清空表单
-    formFields.value = { text: '', subtitleId: '', optimizedText: '', enText: '', version: 0 }
+    formFields.value = { text: '', subtitleId: '', optimizedText: '', enText: '', version: 0, enVersion: 0 }
   } catch (error: any) {
     wsSendLog.value.unshift({
       time,
@@ -307,12 +309,22 @@ onUnmounted(() => {
                 </div>
 
                 <div class="form-row">
-                  <label class="form-label">版本号</label>
+                  <label class="form-label">中文版本号</label>
                   <input
                     v-model.number="formFields.version"
                     type="number"
                     class="form-input"
                     placeholder="输入版本号..."
+                  />
+                </div>
+
+                <div class="form-row">
+                  <label class="form-label">英文版本号</label>
+                  <input
+                    v-model.number="formFields.enVersion"
+                    type="number"
+                    class="form-input"
+                    placeholder="输入英文版本号..."
                   />
                 </div>
               </template>

@@ -1,6 +1,5 @@
 import type { CurrentSubtitle, ConfirmedSubtitle } from '../../types/subtitle'
 import type { SimulationState } from '../../types/simulation'
-import type { WSMessage } from '../../types/websocket'
 import { DEFAULT_SIMULATION_STATE } from '../../types/simulation'
 import { getRandomSentence } from './sample-data'
 import { broadcast } from './websocket'
@@ -9,11 +8,6 @@ import { broadcast } from './websocket'
  * 全局模拟状态
  */
 export const simulationState: SimulationState = { ...DEFAULT_SIMULATION_STATE }
-
-/**
- * 英文版本号（用于竞态处理）
- */
-let currentVersion = 0
 
 /**
  * 模拟器定时器
@@ -29,7 +23,7 @@ function generateId(): string {
 }
 
 /**
- * 获取随机延迟（基础延迟 ± 随机范围）
+ * 获取随机延迟
  */
 function getRandomDelay(): number {
   const base = simulationState.optimizationDelay
@@ -39,15 +33,34 @@ function getRandomDelay(): number {
 
 /**
  * 生成字幕：逐字输出模拟
+ * current 阶段只发中文，英文通过异步翻译返回
  */
 function startCharacterSimulation(sentence: { chinese: string; english: string }) {
   let charIndex = 0
   const chineseChars = sentence.chinese.split('')
+  let chineseVersion = 0
+  let englishVersion = 0
 
   // 清除之前的字符定时器
   if (characterTimer) {
     clearTimeout(characterTimer)
     characterTimer = null
+  }
+
+  // 模拟异步翻译
+  const simulateAsyncTranslation = () => {
+    if (!simulationState.isRunning) return
+
+    englishVersion++
+    broadcast({
+      type: 'current',
+      data: {
+        text: chineseChars.join(''),
+        enText: sentence.english,
+        version: chineseVersion,
+        enVersion: englishVersion
+      }
+    })
   }
 
   // 逐字输出
@@ -57,33 +70,38 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
     }
 
     if (charIndex < chineseChars.length) {
-      // 当前中文文本
       const currentText = chineseChars.slice(0, charIndex + 1).join('')
+      chineseVersion++
 
-      // 更新当前字幕状态
       simulationState.currentSubtitle = {
         text: currentText,
+        enText: '',
+        version: chineseVersion,
+        enVersion: 0,
         startTime: Date.now()
       }
 
-      // 模拟翻译
-      const enText = simulateTranslation(currentText, sentence.english)
-      currentVersion++
-
-      // 广播 current 消息（包含中文、英文翻译和版本号）
+      // current：只发中文，英文为空，触发异步翻译
       broadcast({
         type: 'current',
         data: {
           text: currentText,
-          enText,
-          version: currentVersion
+          enText: '',
+          version: chineseVersion,
+          enVersion: 0
         }
       })
 
+      // 模拟异步翻译（延迟返回）
+      setTimeout(() => {
+        if (!simulationState.isRunning) return
+        simulateAsyncTranslation()
+      }, 500 + Math.random() * 500)
+
       charIndex++
-      characterTimer = setTimeout(outputNextChar, 100 + Math.random() * 100) // 100-200ms 每个字
+      characterTimer = setTimeout(outputNextChar, 100 + Math.random() * 100)
     } else {
-      // 字幕完成，确认并创建已确认字幕
+      // 字幕完成，发送 confirmed
       confirmSubtitle(sentence)
     }
   }
@@ -92,38 +110,58 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
 }
 
 /**
- * 确认字幕
+ * 确认字幕：发送原始文本，发起 AI 请求
  */
 function confirmSubtitle(sentence: { chinese: string; english: string }) {
   const id = generateId()
-  const timestamp = Date.now()
 
-  // 模拟优化后的文本
-  const optimizedText = simulateOptimization(sentence.chinese)
+  // 清空当前输入
+  simulationState.currentSubtitle = null
 
-  // 创建已确认字幕
+  // 创建字幕并添加到列表
   const confirmedSubtitle: ConfirmedSubtitle = {
     id,
     text: sentence.chinese,
-    optimizedText,
-    enText: sentence.english,
-    timestamp
+    timestamp: Date.now()
   }
-
-  // 添加到确认列表
   simulationState.confirmedSubtitles.push(confirmedSubtitle)
-  simulationState.currentSubtitle = null
 
-  // 广播 confirmed 消息（包含完整数据）
+  // 发送 confirmed（原始文本，优化和翻译为空）
   broadcast({
     type: 'confirmed',
     data: {
       id,
       text: sentence.chinese,
-      optimizedText,
-      enText: sentence.english
+      optimizedText: '',
+      enText: ''
     }
   })
+
+  // 模拟 AI 优化+翻译（延迟后返回）
+  const aiDelay = getRandomDelay()
+  setTimeout(() => {
+    if (!simulationState.isRunning) return
+
+    const optimizedText = simulateOptimization(sentence.chinese)
+
+    // 更新字幕状态
+    const subtitle = simulationState.confirmedSubtitles.find(s => s.id === id)
+    if (subtitle) {
+      subtitle.optimizedText = optimizedText
+      subtitle.enText = sentence.english
+    }
+
+    // 发送更新后的 confirmed
+    broadcast({
+      type: 'confirmed',
+      data: {
+        id,
+        text: sentence.chinese,
+        optimizedText,
+        enText: sentence.english
+      }
+    })
+  }, aiDelay)
 
   // 继续下一个字幕
   if (simulationState.isRunning) {
@@ -132,23 +170,12 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
         const nextSentence = getRandomSentence()
         startCharacterSimulation(nextSentence)
       }
-    }, 1500 + Math.random() * 1000) // 1.5-2.5秒后开始下一句
+    }, 1500 + Math.random() * 1000)
   }
 }
 
 /**
- * 模拟翻译
- */
-function simulateTranslation(currentText: string, fullEnglish: string): string {
-  // 简单模拟：返回部分英文
-  const englishWords = fullEnglish.split(' ')
-  const charCount = currentText.length
-  const wordCount = Math.ceil(charCount / 2)
-  return englishWords.slice(0, wordCount).join(' ')
-}
-
-/**
- * 模拟文本优化（演示用途）
+ * 模拟文本优化
  */
 function simulateOptimization(text: string): string {
   const optimizations = [
@@ -169,13 +196,11 @@ export function startSimulation(delay?: number): boolean {
   }
 
   simulationState.isRunning = true
-  currentVersion = 0
 
   if (delay !== undefined) {
     simulationState.optimizationDelay = delay
   }
 
-  // 立即开始第一个字幕
   const sentence = getRandomSentence()
   startCharacterSimulation(sentence)
 
@@ -208,7 +233,6 @@ export function clearSubtitles(): void {
   simulationState.confirmedSubtitles = []
   simulationState.currentSubtitle = null
 
-  // 广播清空消息
   broadcast({ type: 'clear' })
 }
 
