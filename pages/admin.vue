@@ -16,6 +16,74 @@ const status = ref<{
   }
 } | null>(null)
 
+// WS 测试相关
+const wsMessageType = ref<string>('active')
+const wsMessageContent = ref<string>('')
+const wsSendLoading = ref(false)
+const wsSendLog = ref<Array<{ time: string; type: string; success: boolean; content: string }>>([])
+
+const wsMessageTypes = [
+  { value: 'init', label: 'init - 初始化' },
+  { value: 'active', label: 'active - 实时转录' },
+  { value: 'confirmed', label: 'confirmed - 字幕确认' },
+  { value: 'optimized', label: 'optimized - 优化字幕' },
+  { value: 'current_en', label: 'current_en - 英文原文' },
+  { value: 'clear', label: 'clear - 清空字幕' }
+]
+
+const formatTime = (date: Date) => {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}.${String(date.getMilliseconds()).padStart(3, '0')}`
+}
+
+const handleSendWsMessage = async () => {
+  if (!wsMessageContent.value.trim()) {
+    return
+  }
+
+  wsSendLoading.value = true
+  const time = formatTime(new Date())
+  let parsedContent: any
+
+  try {
+    parsedContent = JSON.parse(wsMessageContent.value)
+  } catch {
+    wsSendLog.value.unshift({
+      time,
+      type: wsMessageType.value,
+      success: false,
+      content: 'JSON 格式错误'
+    })
+    wsSendLoading.value = false
+    return
+  }
+
+  try {
+    await $fetch('/api/ws/send', {
+      method: 'POST',
+      body: {
+        type: wsMessageType.value,
+        data: parsedContent
+      }
+    })
+    wsSendLog.value.unshift({
+      time,
+      type: wsMessageType.value,
+      success: true,
+      content: wsMessageContent.value.substring(0, 100)
+    })
+    wsMessageContent.value = ''
+  } catch (error: any) {
+    wsSendLog.value.unshift({
+      time,
+      type: wsMessageType.value,
+      success: false,
+      content: error.message || '发送失败'
+    })
+  } finally {
+    wsSendLoading.value = false
+  }
+}
+
 // 获取状态
 const fetchStatus = async () => {
   try {
@@ -173,6 +241,70 @@ onUnmounted(() => {
           @stop="handleStop"
           @clear="handleClear"
         />
+
+        <!-- WS 测试面板 -->
+        <div class="ws-test-panel">
+          <div class="panel-header">
+            <div class="panel-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+            </div>
+            <span class="panel-title">WS EVENT TEST</span>
+          </div>
+
+          <div class="ws-test-form">
+            <div class="form-row">
+              <label class="form-label">MESSAGE TYPE</label>
+              <select v-model="wsMessageType" class="form-select">
+                <option v-for="msg in wsMessageTypes" :key="msg.value" :value="msg.value">
+                  {{ msg.label }}
+                </option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">MESSAGE DATA (JSON)</label>
+              <textarea
+                v-model="wsMessageContent"
+                class="form-textarea"
+                placeholder='{"rawText": "Hello", "translatedText": "你好"}'
+                rows="4"
+              ></textarea>
+            </div>
+
+            <button
+              class="send-btn"
+              :disabled="wsSendLoading || !wsMessageContent.trim()"
+              @click="handleSendWsMessage"
+            >
+              <svg v-if="wsSendLoading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+              <span>SEND</span>
+            </button>
+          </div>
+
+          <div class="ws-log" v-if="wsSendLog.length > 0">
+            <div class="log-header">SEND LOG</div>
+            <div class="log-list">
+              <div
+                v-for="(log, index) in wsSendLog.slice(0, 10)"
+                :key="index"
+                class="log-item"
+                :class="{ success: log.success, error: !log.success }"
+              >
+                <span class="log-time">{{ log.time }}</span>
+                <span class="log-type">[{{ log.type }}]</span>
+                <span class="log-content">{{ log.content }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- 状态面板 -->
         <AdminStatusPanel :status="status" />
@@ -523,7 +655,8 @@ onUnmounted(() => {
 
 /* Panel common styles */
 .quick-actions-panel,
-.system-info-panel {
+.system-info-panel,
+.ws-test-panel {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.6) 100%);
   border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 16px;
@@ -680,6 +813,160 @@ onUnmounted(() => {
 
 .info-value.highlight {
   color: #22d3ee;
+}
+
+/* WS Test Panel */
+.ws-test-panel {
+  grid-column: span 2;
+}
+
+@media (max-width: 1024px) {
+  .ws-test-panel {
+    grid-column: span 1;
+  }
+}
+
+.ws-test-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.form-select,
+.form-textarea {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  transition: all 0.3s ease;
+}
+
+.form-select:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 8px;
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(34, 211, 238, 0.3) 100%);
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.send-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ws-log {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(56, 189, 248, 0.1);
+}
+
+.log-header {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: rgba(148, 163, 184, 0.6);
+  margin-bottom: 0.75rem;
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.log-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  border-left: 3px solid;
+  font-size: 0.75rem;
+}
+
+.log-item.success {
+  border-left-color: #10b981;
+}
+
+.log-item.error {
+  border-left-color: #ef4444;
+}
+
+.log-time {
+  color: rgba(148, 163, 184, 0.5);
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+
+.log-type {
+  color: #38bdf8;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.log-content {
+  color: #94a3b8;
+  word-break: break-all;
 }
 
 /* Footer */
