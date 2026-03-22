@@ -1,4 +1,4 @@
-import type { ActiveSubtitle, ConfirmedSubtitle } from '../../types/subtitle'
+import type { CurrentSubtitle, ConfirmedSubtitle } from '../../types/subtitle'
 import type { SimulationState } from '../../types/simulation'
 import type { WSMessage } from '../../types/websocket'
 import { DEFAULT_SIMULATION_STATE } from '../../types/simulation'
@@ -9,6 +9,11 @@ import { broadcast } from './websocket'
  * 全局模拟状态
  */
 export const simulationState: SimulationState = { ...DEFAULT_SIMULATION_STATE }
+
+/**
+ * 英文版本号（用于竞态处理）
+ */
+let currentVersion = 0
 
 /**
  * 模拟器定时器
@@ -38,7 +43,6 @@ function getRandomDelay(): number {
 function startCharacterSimulation(sentence: { chinese: string; english: string }) {
   let charIndex = 0
   const chineseChars = sentence.chinese.split('')
-  const englishWords = sentence.english.split(' ')
 
   // 清除之前的字符定时器
   if (characterTimer) {
@@ -53,28 +57,26 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
     }
 
     if (charIndex < chineseChars.length) {
-      // 更新正在转录的字幕
-      const currentChinese = chineseChars.slice(0, charIndex + 1).join('')
-      const currentEnglish = englishWords.slice(0, Math.min(Math.floor((charIndex + 1) / 2), englishWords.length)).join(' ')
+      // 当前中文文本
+      const currentText = chineseChars.slice(0, charIndex + 1).join('')
 
-      simulationState.activeSubtitle = {
-        rawText: currentChinese,
-        translatedText: currentEnglish,
+      // 更新当前字幕状态
+      simulationState.currentSubtitle = {
+        text: currentText,
         startTime: Date.now()
       }
 
-      // 广播更新
+      // 模拟翻译
+      const enText = simulateTranslation(currentText, sentence.english)
+      currentVersion++
+
+      // 广播 current 消息（包含中文、英文翻译和版本号）
       broadcast({
-        type: 'active',
+        type: 'current',
         data: {
-          rawText: currentChinese,
-          translatedText: currentEnglish
-        }
-      })
-      broadcast({
-        type: 'current_en',
-        data: {
-          enText: currentEnglish
+          text: currentText,
+          enText,
+          version: currentVersion
         }
       })
 
@@ -96,53 +98,32 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
   const id = generateId()
   const timestamp = Date.now()
 
-  // 创建已确认字幕（原始版本先推送）
+  // 模拟优化后的文本
+  const optimizedText = simulateOptimization(sentence.chinese)
+
+  // 创建已确认字幕
   const confirmedSubtitle: ConfirmedSubtitle = {
     id,
-    rawText: sentence.chinese,
-    optimizedText: sentence.chinese, // 初始等于原文
-    translatedText: sentence.english,
+    text: sentence.chinese,
+    optimizedText,
+    enText: sentence.english,
     timestamp
   }
 
   // 添加到确认列表
   simulationState.confirmedSubtitles.push(confirmedSubtitle)
-  simulationState.activeSubtitle = null
+  simulationState.currentSubtitle = null
 
-  // 广播确认消息
+  // 广播 confirmed 消息（包含完整数据）
   broadcast({
     type: 'confirmed',
-    data: confirmedSubtitle
-  })
-  broadcast({
-    type: 'current_en',
     data: {
-      enText: ''
+      id,
+      text: sentence.chinese,
+      optimizedText,
+      enText: sentence.english
     }
   })
-
-  // 延迟后发送优化版本
-  const delay = getRandomDelay()
-  setTimeout(() => {
-    // 模拟优化（这里只是简单地添加一些标点或小修改）
-    const optimized = simulateOptimization(sentence.chinese)
-
-    // 更新已确认字幕的优化文本
-    const subtitle = simulationState.confirmedSubtitles.find(s => s.id === id)
-    if (subtitle) {
-      subtitle.optimizedText = optimized
-    }
-
-    // 广播优化更新
-    broadcast({
-      type: 'optimized',
-      data: {
-        id,
-        optimizedText: optimized,
-        translatedText: sentence.english
-      }
-    })
-  }, delay)
 
   // 继续下一个字幕
   if (simulationState.isRunning) {
@@ -156,10 +137,20 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
 }
 
 /**
+ * 模拟翻译
+ */
+function simulateTranslation(currentText: string, fullEnglish: string): string {
+  // 简单模拟：返回部分英文
+  const englishWords = fullEnglish.split(' ')
+  const charCount = currentText.length
+  const wordCount = Math.ceil(charCount / 2)
+  return englishWords.slice(0, wordCount).join(' ')
+}
+
+/**
  * 模拟文本优化（演示用途）
  */
 function simulateOptimization(text: string): string {
-  // 简单模拟：有时添加标点或调整格式
   const optimizations = [
     text,
     text.endsWith('。') ? text : text + '。',
@@ -178,6 +169,8 @@ export function startSimulation(delay?: number): boolean {
   }
 
   simulationState.isRunning = true
+  currentVersion = 0
+
   if (delay !== undefined) {
     simulationState.optimizationDelay = delay
   }
@@ -205,7 +198,7 @@ export function stopSimulation(): void {
     characterTimer = null
   }
 
-  simulationState.activeSubtitle = null
+  simulationState.currentSubtitle = null
 }
 
 /**
@@ -213,16 +206,10 @@ export function stopSimulation(): void {
  */
 export function clearSubtitles(): void {
   simulationState.confirmedSubtitles = []
-  simulationState.activeSubtitle = null
+  simulationState.currentSubtitle = null
 
   // 广播清空消息
   broadcast({ type: 'clear' })
-  broadcast({
-    type: 'current_en',
-    data: {
-      enText: ''
-    }
-  })
 }
 
 /**
@@ -231,7 +218,7 @@ export function clearSubtitles(): void {
 export function getStatus() {
   return {
     isRunning: simulationState.isRunning,
-    connectionCount: 0, // 将由 API 路由填充
+    connectionCount: 0,
     subtitleCount: simulationState.confirmedSubtitles.length,
     config: {
       optimizationDelay: simulationState.optimizationDelay,

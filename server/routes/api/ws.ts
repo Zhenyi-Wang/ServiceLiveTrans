@@ -13,19 +13,11 @@ export default defineWebSocketHandler({
     const initMessage: WSMessage = {
       type: 'init',
       data: {
-        active: simulationState.activeSubtitle,
+        current: simulationState.currentSubtitle?.text ?? null,
         confirmed: simulationState.confirmedSubtitles
       }
     }
     sendTo(peer, initMessage)
-    if (simulationState.activeSubtitle?.translatedText) {
-      sendTo(peer, {
-        type: 'current_en',
-        data: {
-          enText: simulationState.activeSubtitle.translatedText
-        }
-      })
-    }
   },
 
   close(peer) {

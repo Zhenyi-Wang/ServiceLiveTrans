@@ -1,4 +1,4 @@
-import type { ActiveSubtitle, ConfirmedSubtitle } from '~/types/subtitle'
+import type { CurrentSubtitle, ConfirmedSubtitle } from '~/types/subtitle'
 import type { WSMessage } from '~/types/websocket'
 import type { ConnectionStatus } from './useWebSocket'
 
@@ -6,9 +6,9 @@ export type LanguageMode = 'chinese' | 'english' | 'bilingual'
 
 export function useSubtitles() {
   // 字幕状态
-  const activeSubtitle = ref<ActiveSubtitle | null>(null)
-  const confirmedSubtitles = ref<ConfirmedSubtitle[]>([])
-  const lastCurrentEn = ref('')
+  const currentSubtitle = ref<CurrentSubtitle | null>(null)  // 当前输入（中文）
+  const confirmedSubtitles = ref<ConfirmedSubtitle[]>([])     // 已确认字幕列表
+  const currentVersion = ref(0)       // 当前英文版本号（用于竞态处理）
 
   // 语言模式（持久化到 localStorage）
   const languageMode = useLocalStorage<LanguageMode>('languageMode', 'bilingual')
@@ -20,54 +20,51 @@ export function useSubtitles() {
   const handleMessage = (message: WSMessage) => {
     switch (message.type) {
       case 'init':
-        if (message.data && 'active' in message.data) {
-          activeSubtitle.value = message.data.active
-          confirmedSubtitles.value = message.data.confirmed
+        if (message.data && 'current' in message.data) {
+          const data = message.data as any
+          currentSubtitle.value = data.current ? { text: data.current, startTime: Date.now() } : null
+          confirmedSubtitles.value = data.confirmed || []
         }
         break
 
-      case 'active':
-        if (message.data && 'rawText' in message.data) {
-          activeSubtitle.value = {
-            rawText: message.data.rawText,
-            translatedText: message.data.translatedText,
-            startTime: Date.now()
+      case 'current':
+        // 当前输入更新（包含中文、英文翻译和版本号）
+        if (message.data && 'text' in message.data) {
+          const data = message.data as any
+          // 竞态处理：只有版本号大于等于当前版本才更新
+          if (data.version >= currentVersion.value) {
+            currentVersion.value = data.version
+            currentSubtitle.value = {
+              text: data.text,
+              enText: data.enText,
+              startTime: Date.now()
+            }
           }
         }
         break
 
       case 'confirmed':
+        // 已确认字幕（包含完整数据）
         if (message.data && 'id' in message.data) {
-          // 添加新确认的字幕
-          const newSubtitle = message.data as ConfirmedSubtitle
-          confirmedSubtitles.value.push(newSubtitle)
-          // 清空正在转录的字幕
-          activeSubtitle.value = null
-          lastCurrentEn.value = ''
-        }
-        break
-
-      case 'optimized':
-        if (message.data && 'id' in message.data) {
-          // 更新已确认字幕的优化版本
-          const index = confirmedSubtitles.value.findIndex(s => s.id === message.data!.id)
-          if (index !== -1 && message.data && 'optimizedText' in message.data) {
-            confirmedSubtitles.value[index].optimizedText = message.data.optimizedText as string
-            confirmedSubtitles.value[index].translatedText = message.data.translatedText as string
+          const data = message.data as any
+          const newSubtitle: ConfirmedSubtitle = {
+            id: data.id,
+            text: data.text,
+            optimizedText: data.optimizedText,
+            enText: data.enText,
+            timestamp: Date.now()
           }
-        }
-        break
-      case 'current_en':
-        if (message.data && 'enText' in message.data) {
-          lastCurrentEn.value = message.data.enText as string
+          confirmedSubtitles.value.push(newSubtitle)
+          // 清空当前输入
+          currentSubtitle.value = null
         }
         break
 
       case 'clear':
         // 清空所有字幕
-        activeSubtitle.value = null
+        currentSubtitle.value = null
         confirmedSubtitles.value = []
-        lastCurrentEn.value = ''
+        currentVersion.value = 0
         break
     }
   }
@@ -79,15 +76,15 @@ export function useSubtitles() {
 
   // 清空字幕
   const clearSubtitles = () => {
-    activeSubtitle.value = null
+    currentSubtitle.value = null
     confirmedSubtitles.value = []
   }
 
   return {
     // 状态
-    activeSubtitle: readonly(activeSubtitle),
+    currentSubtitle: readonly(currentSubtitle),
     confirmedSubtitles: readonly(confirmedSubtitles),
-    lastCurrentEn: readonly(lastCurrentEn),
+    currentVersion: readonly(currentVersion),
     languageMode: readonly(languageMode),
     connectionStatus: readonly(connectionStatus),
 

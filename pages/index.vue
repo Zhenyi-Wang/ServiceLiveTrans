@@ -18,9 +18,8 @@ const {
 
 // 字幕状态
 const {
-  activeSubtitle,
+  currentSubtitle,
   confirmedSubtitles,
-  lastCurrentEn,
   connectionStatus,
   handleMessage,
   _setConnectionStatus
@@ -67,7 +66,7 @@ const isWaitingForService = computed(() =>
   connectionStatus.value !== 'connected' || confirmedSubtitles.value.length === 0
 )
 
-watchDataAndScroll(activeSubtitle, confirmedSubtitles)
+watchDataAndScroll(currentSubtitle, confirmedSubtitles)
 
 // 处理字号变化
 const handleChineseFontSizeChange = (value: number) => {
@@ -127,8 +126,7 @@ const handleToggleAutoScroll = () => {
           language="chinese"
           title="中文 | Chinese"
           :paragraphs="getChineseParagraphs"
-          :active-subtitle="activeSubtitle"
-          :last-current-en="lastCurrentEn"
+          :current-subtitle="currentSubtitle"
           :font-size="configChineseFontSize"
           :is-fullscreen="isChineseFullscreen"
           :is-waiting-for-service="isWaitingForService"
@@ -152,8 +150,7 @@ const handleToggleAutoScroll = () => {
           language="english"
           title="English"
           :paragraphs="getEnglishParagraphs"
-          :active-subtitle="activeSubtitle"
-          :last-current-en="lastCurrentEn"
+          :current-subtitle="currentSubtitle"
           :font-size="configEnglishFontSize"
           :is-fullscreen="isEnglishFullscreen"
           :is-waiting-for-service="isWaitingForService"

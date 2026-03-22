@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const validTypes: WSMessageType[] = ['init', 'active', 'confirmed', 'optimized', 'current_en', 'clear']
+  const validTypes: WSMessageType[] = ['init', 'confirmed', 'current', 'clear']
 
   if (!validTypes.includes(body.type)) {
     throw createError({

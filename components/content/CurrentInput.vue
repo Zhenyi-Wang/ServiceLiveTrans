@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import type { ActiveSubtitle } from '~/types/subtitle'
+import type { CurrentSubtitle } from '~/types/subtitle'
 
 interface Props {
   language: 'chinese' | 'english'
-  activeSubtitle: ActiveSubtitle | null
-  lastCurrentEn?: string
+  currentSubtitle: CurrentSubtitle | null
   fontSize: number
 }
 
@@ -19,11 +18,11 @@ const contentClasses = computed(() => ({
 }))
 
 const displayText = computed(() => {
-  if (!props.activeSubtitle) return ''
+  if (!props.currentSubtitle) return ''
   if (props.language === 'english') {
-    return props.lastCurrentEn || props.activeSubtitle.translatedText || ''
+    return props.currentSubtitle.enText || ''
   }
-  return props.activeSubtitle.rawText || ''
+  return props.currentSubtitle.text || ''
 })
 </script>
 

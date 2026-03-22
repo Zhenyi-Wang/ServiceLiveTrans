@@ -1,45 +1,44 @@
-import type { ActiveSubtitle, ConfirmedSubtitle } from './subtitle'
-
 /**
  * WebSocket 消息类型
  */
-export type WSMessageType = 'init' | 'active' | 'confirmed' | 'optimized' | 'current_en' | 'clear'
+export type WSMessageType = 'init' | 'confirmed' | 'current' | 'clear'
 
 /**
  * 初始化消息数据
  */
 export interface WSInitData {
-  active: ActiveSubtitle | null
+  current: string | null  // 当前正在转录的中文
   confirmed: ConfirmedSubtitle[]
 }
 
 /**
- * 正在转录更新消息数据
+ * 已确认字幕消息数据
  */
-export interface WSActiveData {
-  rawText: string
-  translatedText: string
-}
-
-/**
- * 字幕确认消息数据
- */
-export interface WSConfirmedData extends ConfirmedSubtitle {}
-
-/**
- * 字幕优化更新消息数据
- */
-export interface WSOptimizedData {
+export interface WSConfirmedData {
   id: string
-  optimizedText: string
-  translatedText: string
+  text: string           // 中文原文
+  optimizedText: string  // AI 优化后的中文
+  enText: string         // 英文翻译
 }
 
 /**
- * 实时英文更新消息数据
+ * 当前输入消息数据
  */
-export interface WSCurrentEnData {
-  enText: string
+export interface WSCurrentData {
+  text: string           // 纯中文
+  enText: string         // 英文翻译
+  version: number        // 版本号（用于竞态处理）
+}
+
+/**
+ * 已确认字幕
+ */
+export interface ConfirmedSubtitle {
+  id: string
+  text: string           // 中文原文
+  optimizedText?: string  // AI 优化后的中文（可选）
+  enText?: string         // 英文翻译（可选）
+  timestamp: number
 }
 
 /**
@@ -47,17 +46,5 @@ export interface WSCurrentEnData {
  */
 export interface WSMessage {
   type: WSMessageType
-  data?: WSInitData | WSActiveData | WSConfirmedData | WSOptimizedData | WSCurrentEnData | null
-}
-
-/**
- * 客户端连接信息
- */
-export interface ClientConnection {
-  /** 连接 ID */
-  id: string
-  /** 连接时间 */
-  connectedAt: number
-  /** 最后活动时间 */
-  lastActivity: number
+  data?: WSInitData | WSConfirmedData | WSCurrentData | null
 }

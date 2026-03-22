@@ -17,61 +17,72 @@ const status = ref<{
 } | null>(null)
 
 // WS 测试相关
-const wsMessageType = ref<string>('active')
-const wsMessageContent = ref<string>('')
+const wsMessageType = ref<string>('current')
 const wsSendLoading = ref(false)
 const wsSendLog = ref<Array<{ time: string; type: string; success: boolean; content: string }>>([])
 
+// 表单字段
+const formFields = ref({
+  text: '',           // 中文文本 (current/confirmed)
+  subtitleId: '',      // 字幕 ID (confirmed)
+  optimizedText: '',   // 优化文本 (confirmed)
+  enText: '',         // 英文翻译 (current/confirmed)
+  version: 0          // 版本号 (current)
+})
+
 const wsMessageTypes = [
-  { value: 'init', label: 'init - 初始化' },
-  { value: 'active', label: 'active - 实时转录' },
-  { value: 'confirmed', label: 'confirmed - 字幕确认' },
-  { value: 'optimized', label: 'optimized - 优化字幕' },
-  { value: 'current_en', label: 'current_en - 英文原文' },
-  { value: 'clear', label: 'clear - 清空字幕' }
+  { value: 'current', label: 'current', desc: '当前输入' },
+  { value: 'confirmed', label: 'confirmed', desc: '确认字幕' },
+  { value: 'clear', label: 'clear', desc: '清空字幕' }
 ]
 
 const formatTime = (date: Date) => {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}.${String(date.getMilliseconds()).padStart(3, '0')}`
 }
 
-const handleSendWsMessage = async () => {
-  if (!wsMessageContent.value.trim()) {
-    return
+const getMessageData = () => {
+  switch (wsMessageType.value) {
+    case 'current':
+      return {
+        text: formFields.value.text,
+        enText: formFields.value.enText,
+        version: formFields.value.version || 1
+      }
+    case 'confirmed':
+      return {
+        id: formFields.value.subtitleId || crypto.randomUUID(),
+        text: formFields.value.text,
+        optimizedText: formFields.value.optimizedText || formFields.value.text,
+        enText: formFields.value.enText
+      }
+    case 'clear':
+      return null
+    default:
+      return null
   }
+}
 
+const handleSendWsMessage = async () => {
   wsSendLoading.value = true
   const time = formatTime(new Date())
-  let parsedContent: any
-
-  try {
-    parsedContent = JSON.parse(wsMessageContent.value)
-  } catch {
-    wsSendLog.value.unshift({
-      time,
-      type: wsMessageType.value,
-      success: false,
-      content: 'JSON 格式错误'
-    })
-    wsSendLoading.value = false
-    return
-  }
+  const data = getMessageData()
 
   try {
     await $fetch('/api/ws/send', {
       method: 'POST',
       body: {
         type: wsMessageType.value,
-        data: parsedContent
+        data
       }
     })
     wsSendLog.value.unshift({
       time,
       type: wsMessageType.value,
       success: true,
-      content: wsMessageContent.value.substring(0, 100)
+      content: data ? JSON.stringify(data).substring(0, 60) : '(no data)'
     })
-    wsMessageContent.value = ''
+    // 清空表单
+    formFields.value = { text: '', subtitleId: '', optimizedText: '', enText: '', version: 0 }
   } catch (error: any) {
     wsSendLog.value.unshift({
       time,
@@ -254,28 +265,115 @@ onUnmounted(() => {
           </div>
 
           <div class="ws-test-form">
+            <!-- 消息类型选择 -->
             <div class="form-row">
               <label class="form-label">MESSAGE TYPE</label>
-              <select v-model="wsMessageType" class="form-select">
-                <option v-for="msg in wsMessageTypes" :key="msg.value" :value="msg.value">
-                  {{ msg.label }}
-                </option>
-              </select>
+              <div class="type-grid">
+                <button
+                  v-for="msg in wsMessageTypes"
+                  :key="msg.value"
+                  class="type-btn"
+                  :class="{ active: wsMessageType === msg.value }"
+                  @click="wsMessageType = msg.value"
+                >
+                  <span class="type-name">{{ msg.label }}</span>
+                  <span class="type-desc">{{ msg.desc }}</span>
+                </button>
+              </div>
             </div>
 
-            <div class="form-row">
-              <label class="form-label">MESSAGE DATA (JSON)</label>
-              <textarea
-                v-model="wsMessageContent"
-                class="form-textarea"
-                placeholder='{"rawText": "Hello", "translatedText": "你好"}'
-                rows="4"
-              ></textarea>
+            <!-- 动态表单字段 -->
+            <div class="form-fields" v-if="wsMessageType !== 'clear'">
+              <!-- current 字段 -->
+              <template v-if="wsMessageType === 'current'">
+                <div class="form-row">
+                  <label class="form-label">中文文本</label>
+                  <input
+                    v-model="formFields.text"
+                    type="text"
+                    class="form-input"
+                    placeholder="输入当前中文..."
+                  />
+                </div>
+
+                <div class="form-row">
+                  <label class="form-label">英文翻译</label>
+                  <input
+                    v-model="formFields.enText"
+                    type="text"
+                    class="form-input"
+                    placeholder="输入英文翻译..."
+                  />
+                </div>
+
+                <div class="form-row">
+                  <label class="form-label">版本号</label>
+                  <input
+                    v-model.number="formFields.version"
+                    type="number"
+                    class="form-input"
+                    placeholder="输入版本号..."
+                  />
+                </div>
+              </template>
+
+              <!-- confirmed 字段 -->
+              <template v-if="wsMessageType === 'confirmed'">
+                <div class="form-row">
+                  <label class="form-label">中文文本</label>
+                  <input
+                    v-model="formFields.text"
+                    type="text"
+                    class="form-input"
+                    placeholder="输入确认的中文..."
+                  />
+                </div>
+
+                <div class="form-row">
+                  <label class="form-label">优化后的中文</label>
+                  <input
+                    v-model="formFields.optimizedText"
+                    type="text"
+                    class="form-input"
+                    placeholder="输入优化后的中文（可选）..."
+                  />
+                </div>
+
+                <div class="form-row">
+                  <label class="form-label">英文翻译</label>
+                  <input
+                    v-model="formFields.enText"
+                    type="text"
+                    class="form-input"
+                    placeholder="输入英文翻译..."
+                  />
+                </div>
+
+                <div class="form-row">
+                  <label class="form-label">字幕 ID（可选）</label>
+                  <input
+                    v-model="formFields.subtitleId"
+                    type="text"
+                    class="form-input"
+                    placeholder="留空自动生成"
+                  />
+                </div>
+              </template>
+            </div>
+
+            <!-- clear 提示 -->
+            <div class="clear-hint" v-if="wsMessageType === 'clear'">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>点击发送将清空所有字幕</span>
             </div>
 
             <button
               class="send-btn"
-              :disabled="wsSendLoading || !wsMessageContent.trim()"
+              :disabled="wsSendLoading"
               @click="handleSendWsMessage"
             >
               <svg v-if="wsSendLoading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
@@ -844,8 +942,7 @@ onUnmounted(() => {
   color: rgba(148, 163, 184, 0.7);
 }
 
-.form-select,
-.form-textarea {
+.form-input {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 8px;
@@ -854,18 +951,91 @@ onUnmounted(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.85rem;
   transition: all 0.3s ease;
+  width: 100%;
 }
 
-.form-select:focus,
-.form-textarea:focus {
+.form-input:focus {
   outline: none;
   border-color: rgba(56, 189, 248, 0.5);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
 }
 
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
+.form-input::placeholder {
+  color: rgba(148, 163, 184, 0.4);
+}
+
+/* Type grid buttons */
+.type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .type-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.type-btn:hover {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.type-btn.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+}
+
+.type-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  letter-spacing: 0.05em;
+}
+
+.type-desc {
+  font-size: 0.6rem;
+  color: rgba(148, 163, 184, 0.6);
+}
+
+.type-btn.active .type-name {
+  color: #38bdf8;
+}
+
+/* Clear hint */
+.clear-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 0.85rem;
+}
+
+.clear-hint svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 .send-btn {

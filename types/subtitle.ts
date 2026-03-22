@@ -1,29 +1,27 @@
 /**
- * 正在转录的字幕
- * 表示当前正在进行的字幕，只有原始文本和实时翻译
+ * 正在转录的字幕（当前输入）
  */
-export interface ActiveSubtitle {
-  /** 原始转录文本 */
-  rawText: string
-  /** 实时翻译文本（模拟生成） */
-  translatedText: string
+export interface CurrentSubtitle {
+  /** 当前转录文本（中文） */
+  text: string
+  /** 英文翻译 */
+  enText?: string
   /** 开始时间戳 */
   startTime: number
 }
 
 /**
  * 已确认的字幕
- * 表示已完成确认的字幕，包含优化后的版本
  */
 export interface ConfirmedSubtitle {
   /** 唯一标识符 */
   id: string
-  /** 原始转录文本 */
-  rawText: string
-  /** 优化后的文本（AI纠正后） */
-  optimizedText: string
-  /** 翻译文本 */
-  translatedText: string
+  /** 中文原文 */
+  text: string
+  /** AI 优化后的中文（可选） */
+  optimizedText?: string
+  /** 英文翻译 */
+  enText?: string
   /** 创建时间戳 */
   timestamp: number
 }

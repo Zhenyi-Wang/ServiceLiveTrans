@@ -15,7 +15,7 @@ export function useParagraphLogic(
     const maxLength = maxParagraphLength.value
 
     confirmedSubtitles.value.forEach((segment) => {
-      const segmentText = segment.optimizedText || segment.rawText
+      const segmentText = segment.optimizedText || segment.text
       if (!segmentText) return
 
       const segmentLength = segmentText.length
@@ -28,12 +28,12 @@ export function useParagraphLogic(
 
         let accumulatedLength = 0
         for (let i = currentSegments.length - 1; i >= Math.max(0, currentSegments.length - 10); i--) {
-          accumulatedLength += (currentSegments[i].optimizedText || currentSegments[i].rawText).length
+          accumulatedLength += (currentSegments[i].optimizedText || currentSegments[i].text).length
           if (currentLength - accumulatedLength <= maxLength - 50) {
             break
           }
 
-          const candidateText = currentSegments[i].optimizedText || currentSegments[i].rawText
+          const candidateText = currentSegments[i].optimizedText || currentSegments[i].text
           for (let j = candidateText.length - 1; j >= Math.max(0, candidateText.length - 50); j--) {
             if (sentenceEnds.includes(candidateText[j])) {
               splitIndex = i
@@ -51,7 +51,7 @@ export function useParagraphLogic(
         paragraphs.push(paragraphSegments)
 
         const removedLength = paragraphSegments.reduce(
-          (sum, seg) => sum + (seg.optimizedText || seg.rawText).length,
+          (sum, seg) => sum + (seg.optimizedText || seg.text).length,
           0
         )
         currentSegments = currentSegments.slice(splitIndex)
@@ -69,8 +69,8 @@ export function useParagraphLogic(
   const getChineseParagraphs = computed(() => {
     return getSegmentParagraphs.value.map(segmentGroup => {
       return segmentGroup.map(seg => ({
-        text: seg.optimizedText || seg.rawText,
-        isOptimized: !!seg.optimizedText && seg.optimizedText !== seg.rawText
+        text: seg.optimizedText || seg.text,
+        isOptimized: !!seg.optimizedText && seg.optimizedText !== seg.text
       }))
     })
   })
@@ -78,10 +78,8 @@ export function useParagraphLogic(
   const getEnglishParagraphs = computed(() => {
     return getSegmentParagraphs.value.map(segmentGroup => {
       return segmentGroup.map(seg => ({
-        text: seg.translatedText || '',
-        isTranslating: !seg.translatedText,
-        id: seg.id,
-        hasContent: !!seg.translatedText
+        text: seg.enText || '',
+        hasContent: !!seg.enText
       }))
     })
   })

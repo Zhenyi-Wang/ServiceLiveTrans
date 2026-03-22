@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ActiveSubtitle } from '~/types/subtitle'
+import type { CurrentSubtitle } from '~/types/subtitle'
 import type { Ref } from 'vue'
 
 type ChineseSegment = {
@@ -20,8 +20,7 @@ interface Props {
   language: 'chinese' | 'english'
   title: string
   paragraphs: Array<Paragraph>
-  activeSubtitle: ActiveSubtitle | null
-  lastCurrentEn?: string
+  currentSubtitle: CurrentSubtitle | null
   fontSize: number
   isFullscreen: boolean
   isWaitingForService: boolean
@@ -94,8 +93,7 @@ const sectionClasses = computed(() => ({
       <!-- 当前输入 -->
       <ContentCurrentInput
         :language="language"
-        :active-subtitle="activeSubtitle"
-        :last-current-en="lastCurrentEn"
+        :current-subtitle="currentSubtitle"
         :font-size="fontSize"
       />
     </div>

@@ -1,4 +1,4 @@
-import type { ActiveSubtitle, ConfirmedSubtitle } from './subtitle'
+import type { CurrentSubtitle, ConfirmedSubtitle } from './subtitle'
 
 /**
  * 模拟状态
@@ -12,7 +12,7 @@ export interface SimulationState {
   /** 延迟随机范围（毫秒） */
   delayRandomRange: number
   /** 当前正在转录的字幕 */
-  activeSubtitle: ActiveSubtitle | null
+  currentSubtitle: CurrentSubtitle | null
   /** 已确认的字幕列表 */
   confirmedSubtitles: ConfirmedSubtitle[]
 }
@@ -24,6 +24,6 @@ export const DEFAULT_SIMULATION_STATE: SimulationState = {
   isRunning: false,
   optimizationDelay: 2000,
   delayRandomRange: 1000,
-  activeSubtitle: null,
+  currentSubtitle: null,
   confirmedSubtitles: []
 }
