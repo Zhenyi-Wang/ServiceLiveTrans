@@ -16,5 +16,4 @@ whisper:
 
 funasr:
   model: "paraformer-zh-streaming"
-  vad_model: "fsmn-vad"
   device: "cuda"
