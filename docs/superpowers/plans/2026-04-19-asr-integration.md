@@ -57,8 +57,24 @@
 - Create: `asr/protocol.py`
 - Create: `asr/config.py`
 - Create: `asr/config.yaml`
+- Run: `pnpm add ws && pnpm add -D @types/ws`
 
-- [ ] **Step 1: 创建 asr 目录和 __init__.py**
+- [ ] **Step 0: 安装 ws npm 包（Nuxt 作为客户端连接 Python 需要此依赖）**
+
+```bash
+pnpm add ws && pnpm add -D @types/ws
+```
+
+- [ ] **Step 1: 创建 asr 目录和 __init__.py，确保 .gitignore 包含 __pycache__**
+
+检查 `.gitignore` 是否已有 `__pycache__/` 规则，如果没有则添加。
+
+```bash
+mkdir -p asr/providers
+touch asr/__init__.py
+touch asr/providers/__init__.py
+grep -q '__pycache__' .gitignore || echo '__pycache__/' >> .gitignore
+```
 
 ```bash
 mkdir -p asr/providers
@@ -202,6 +218,7 @@ server:
   check_interval: 60
 
 whisper:
+  # 模型路径支持 $WHISPER_MODEL_PATH 环境变量覆盖（在 config.py 中处理）
   model: "../livetrans/whisperlive/models/faster-whisper-large-v3"
   device: "cuda"
   compute_type: "int8"
@@ -407,19 +424,42 @@ class WhisperProvider(ASRProvider):
             self._buffer = np.concatenate([self._buffer, audio])
 
     async def _process_loop(self) -> None:
-        """持续检查缓冲区，达到 ~3s 或静音时触发推理"""
-        CHUNK_DURATION = 3.0  # 秒
+        """持续检查缓冲区，达到最小阈值或静音时触发推理"""
+        MIN_CHUNK_DURATION = 1.0  # 最小 1s
+        MAX_CHUNK_DURATION = 5.0  # 最大 5s（防止过长延迟）
         SAMPLE_RATE = 16000
-        min_samples = int(CHUNK_DURATION * SAMPLE_RATE)
+        SILENCE_TIMEOUT = 0.8    # 静音 0.8s 触发推理
+        min_samples = int(MIN_CHUNK_DURATION * SAMPLE_RATE)
+        max_samples = int(MAX_CHUNK_DURATION * SAMPLE_RATE)
+
+        last_audio_time = 0.0
 
         while self._is_running:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.2)
 
             async with self._buffer_lock:
-                if len(self._buffer) < min_samples:
+                buf_len = len(self._buffer)
+
+                should_transcribe = False
+                if buf_len == 0:
                     continue
-                audio_data = self._buffer.copy()
-                self._buffer = np.array([], dtype=np.float32)
+                elif buf_len >= max_samples:
+                    should_transcribe = True
+                elif buf_len >= min_samples:
+                    # 检查是否有静音（尾部 0.3s 均值接近 0）
+                    tail_duration = 0.3
+                    tail_samples = int(tail_duration * SAMPLE_RATE)
+                    if buf_len >= tail_samples:
+                        tail = self._buffer[-tail_samples:]
+                        rms = np.sqrt(np.mean(tail ** 2))
+                        if rms < 0.01:  # 静音阈值
+                            should_transcribe = True
+
+                if should_transcribe:
+                    audio_data = self._buffer.copy()
+                    self._buffer = np.array([], dtype=np.float32)
+                else:
+                    continue
 
             await self._transcribe_chunk(audio_data)
 
@@ -701,6 +741,14 @@ class ModelManager:
     def touch(self) -> None:
         self._last_activity = time.time()
 
+    async def process_audio(self, chunk: bytes) -> bool:
+        """安全地转发音频给当前模型。协程安全。如果模型未加载则静默丢弃。"""
+        async with self._lock:
+            if self._current_model is None:
+                return False
+            await self._current_model.send_audio(chunk)
+            return True
+
     async def start_monitor(self) -> None:
         self._monitor_task = asyncio.create_task(self._idle_monitor())
 
@@ -815,6 +863,12 @@ async def handle_connection(websocket):
         pass
     finally:
         current_ws = None
+        # 清空 queue 中未消费的结果，防止堆积
+        while not result_queue.empty():
+            try:
+                result_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
         logger.info("客户端断开")
 
 
@@ -842,13 +896,8 @@ async def handle_audio(msg: dict):
         return
     chunk = base64.b64decode(data_b64)
 
-    if not manager.is_loaded:
-        return
-
     manager.touch()
-    model_inst = manager._current_model
-    if model_inst is not None:
-        await model_inst.send_audio(chunk)
+    await manager.process_audio(chunk)
 
 
 async def handle_model_load(websocket, msg: dict):
@@ -1475,6 +1524,7 @@ class PCMProcessor extends AudioWorkletProcessor {
     super()
     this._buffer = new Float32Array()
     this._targetSampleRate = 16000
+    this._outputChunkSize = 1600 // 100ms at 16kHz
   }
 
   process(inputs) {
@@ -1484,24 +1534,22 @@ class PCMProcessor extends AudioWorkletProcessor {
     const channel = input[0]
     this._buffer = Float32Array.from([...this._buffer, ...channel])
 
-    const samplesNeeded = Math.floor(
-      (this._buffer.length / sampleRate) * this._targetSampleRate
-    )
-
-    if (samplesNeeded < 1600) return true // ~100ms at 16kHz
-
-    // 简单线性降采样
+    // 需要多少源采样才能产出 outputChunkSize 个目标采样
     const ratio = sampleRate / this._targetSampleRate
-    const pcm16 = new Int16Array(samplesNeeded)
-    for (let i = 0; i < samplesNeeded; i++) {
+    const srcNeeded = Math.ceil(ratio * this._outputChunkSize)
+
+    if (this._buffer.length < srcNeeded) return true
+
+    // 线性降采样：精确产出 outputChunkSize 个目标采样
+    const pcm16 = new Int16Array(this._outputChunkSize)
+    for (let i = 0; i < this._outputChunkSize; i++) {
       const srcIndex = Math.floor(i * ratio)
       const sample = this._buffer[srcIndex] || 0
       pcm16[i] = Math.max(-32768, Math.min(32767, Math.round(sample * 32767)))
     }
 
-    // 移除已处理的样本
-    const consumed = Math.ceil(samplesNeeded * ratio)
-    this._buffer = this._buffer.slice(consumed)
+    // 精确消耗对应数量的源采样，保留余数
+    this._buffer = this._buffer.slice(srcNeeded)
 
     this.port.postMessage({ pcm: pcm16.buffer }, [pcm16.buffer])
     return true
@@ -1546,18 +1594,13 @@ export function useAudioCapture(options: AudioCaptureOptions) {
       workletNode = new AudioWorkletNode(audioContext, 'pcm-processor')
 
       workletNode.port.onmessage = (event) => {
-        const pcmBuffer = event.data.pcm as ArrayBuffer
-        const uint8 = new Uint8Array(pcmBuffer)
-        let binary = ''
-        for (let i = 0; i < uint8.length; i++) {
-          binary += String.fromCharCode(uint8[i])
-        }
-        const base64 = btoa(binary)
+        const bytes = new Uint8Array(event.data.pcm)
+        const base64 = btoa(String.fromCharCode(...bytes))
         options.onAudioChunk(base64)
       }
 
+      // 只连接 source -> worklet，不连接到 destination（避免回声）
       sourceNode.connect(workletNode)
-      workletNode.connect(audioContext.destination)
       isCapturing.value = true
     } catch (e: any) {
       options.onError?.(e.message || '麦克风访问失败')
@@ -1638,12 +1681,21 @@ export function startStream(url: string): boolean {
     'pipe:1'
   ])
 
+  const CHUNK_SIZE = 3200 // 100ms at 16kHz mono 16bit
+  let streamBuffer = Buffer.alloc(0)
+
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    const base64 = chunk.toString('base64')
-    sendAudioChunk(base64)
+    streamBuffer = Buffer.concat([streamBuffer, chunk])
+    while (streamBuffer.length >= CHUNK_SIZE) {
+      const send = streamBuffer.subarray(0, CHUNK_SIZE)
+      streamBuffer = streamBuffer.subarray(CHUNK_SIZE)
+      sendAudioChunk(send.toString('base64'))
+    }
   })
 
-  ffmpegProcess.on('close', (code) => {
+  ffmpegProcess.stderr?.on('data', () => {
+    // ffmpeg 进度信息，静默
+  })
     console.log(`[Stream] ffmpeg 退出, code=${code}`)
     ffmpegProcess = null
   })
@@ -1725,6 +1777,7 @@ git commit -m "feat: 实现直播流拉取（ffmpeg → ASR）"
 
 **Files:**
 - Create: `components/admin/ASRControlPanel.vue`
+- Create: `components/admin/ModelStatusPanel.vue`
 - Modify: `pages/admin.vue` — 集成 ASR 面板
 
 - [ ] **Step 1: 创建 components/admin/ASRControlPanel.vue**
@@ -2039,7 +2092,151 @@ const handleStart = () => {
 </style>
 ```
 
-- [ ] **Step 2: 修改 pages/admin.vue — 集成 ASR 控制面板**
+- [ ] **Step 2: 创建 components/admin/ModelStatusPanel.vue**
+
+```vue
+<script setup lang="ts">
+const modelStatus = ref<{
+  bridgeStatus: string
+  provider: string | null
+  modelLoaded: boolean
+} | null>(null)
+
+async function fetchStatus() {
+  try {
+    const res = await $fetch('/api/asr/status')
+    modelStatus.value = res as typeof modelStatus.value
+  } catch {
+    // ignore
+  }
+}
+
+onMounted(() => {
+  fetchStatus()
+  const interval = setInterval(fetchStatus, 3000)
+  onUnmounted(() => clearInterval(interval))
+})
+</script>
+
+<template>
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="4" y="4" width="16" height="16" rx="2"/>
+          <rect x="9" y="9" width="6" height="6"/>
+        </svg>
+      </div>
+      <span class="panel-title">MODEL STATUS</span>
+    </div>
+
+    <div v-if="modelStatus" class="status-grid">
+      <div class="info-row">
+        <span class="info-label">BRIDGE</span>
+        <span class="info-value" :class="{ highlight: modelStatus.bridgeStatus === 'connected' }">
+          {{ modelStatus.bridgeStatus }}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">PROVIDER</span>
+        <span class="info-value">{{ modelStatus.provider || '—' }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">MODEL</span>
+        <span class="info-value" :class="{ highlight: modelStatus.modelLoaded }">
+          {{ modelStatus.modelLoaded ? 'LOADED' : 'IDLE' }}
+        </span>
+      </div>
+    </div>
+    <div v-else class="loading-hint">Loading...</div>
+  </div>
+</template>
+
+<style scoped>
+.panel {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.6) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 16px;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.5), transparent);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.panel-icon {
+  width: 36px; height: 36px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #38bdf8;
+}
+
+.panel-icon svg { width: 20px; height: 20px; }
+
+.panel-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem; font-weight: 600;
+  letter-spacing: 0.15em;
+  color: #94a3b8;
+}
+
+.status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 3px solid rgba(56, 189, 248, 0.3);
+}
+
+.info-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: rgba(148, 163, 184, 0.6);
+}
+
+.info-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem; font-weight: 500;
+  color: #e2e8f0;
+}
+
+.info-value.highlight { color: #22d3ee; }
+
+.loading-hint {
+  font-size: 0.75rem;
+  color: rgba(148, 163, 184, 0.5);
+  text-align: center;
+  padding: 1rem;
+}
+</style>
+```
+
+- [ ] **Step 3: 修改 pages/admin.vue — 集成 ASR 控制面板**
 
 在 `<script setup>` 中添加 ASR 相关状态和方法。在现有的 `// 获取状态` 注释之前添加：
 
@@ -2088,6 +2285,9 @@ const handleASRStop = async () => {
           @start="handleASRStart"
           @stop="handleASRStop"
         />
+
+        <!-- 模型状态面板 -->
+        <ModelStatusPanel />
 ```
 
 修改 `status-bar` 中的 `isRunning`，使其也反映 ASR 状态。在 `fetchStatus` 函数中添加：
@@ -2109,8 +2309,8 @@ const handleASRStop = async () => {
 - [ ] **Step 3: 提交**
 
 ```bash
-git add components/admin/ASRControlPanel.vue pages/admin.vue
-git commit -m "feat: 添加管理后台 ASR 控制面板"
+git add components/admin/ASRControlPanel.vue components/admin/ModelStatusPanel.vue pages/admin.vue
+git commit -m "feat: 添加管理后台 ASR 控制面板和模型状态面板"
 ```
 
 ---
