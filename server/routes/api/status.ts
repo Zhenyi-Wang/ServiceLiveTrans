@@ -1,11 +1,11 @@
-import { getStatus } from '../../utils/simulator'
+import { transcriptionState } from '../../utils/transcription-state'
 import { getConnectionCount } from '../../utils/websocket'
 
 export default defineEventHandler(() => {
-  const status = getStatus()
-
   return {
-    ...status,
-    connectionCount: getConnectionCount()
+    isActive: transcriptionState.isActive,
+    source: transcriptionState.source,
+    connectionCount: getConnectionCount(),
+    subtitleCount: transcriptionState.confirmedSubtitles.length
   }
 })

@@ -3,6 +3,7 @@ import type { SimulationState } from '../../types/simulation'
 import { DEFAULT_SIMULATION_STATE } from '../../types/simulation'
 import { getRandomSentence } from './sample-data'
 import { broadcast } from './websocket'
+import { transcriptionState } from './transcription-state'
 
 /**
  * 全局模拟状态
@@ -40,6 +41,9 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
   const chineseChars = sentence.chinese.split('')
   let chineseVersion = 0
   let englishVersion = 0
+
+  transcriptionState.isActive = true
+  transcriptionState.source = 'simulator'
 
   // 清除之前的字符定时器
   if (characterTimer) {
@@ -81,6 +85,8 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
         startTime: Date.now()
       }
 
+      transcriptionState.currentSubtitle = simulationState.currentSubtitle
+
       // current：只发中文，英文为空，触发异步翻译
       broadcast({
         type: 'current',
@@ -117,6 +123,7 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
 
   // 清空当前输入
   simulationState.currentSubtitle = null
+  transcriptionState.currentSubtitle = null
 
   // 创建字幕并添加到列表
   const confirmedSubtitle: ConfirmedSubtitle = {
@@ -125,6 +132,7 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
     timestamp: Date.now()
   }
   simulationState.confirmedSubtitles.push(confirmedSubtitle)
+  transcriptionState.confirmedSubtitles.push(confirmedSubtitle)
 
   // 发送 confirmed（原始文本，优化和翻译为空）
   broadcast({
@@ -224,6 +232,10 @@ export function stopSimulation(): void {
   }
 
   simulationState.currentSubtitle = null
+
+  transcriptionState.isActive = false
+  transcriptionState.source = null
+  transcriptionState.currentSubtitle = null
 }
 
 /**
@@ -232,6 +244,9 @@ export function stopSimulation(): void {
 export function clearSubtitles(): void {
   simulationState.confirmedSubtitles = []
   simulationState.currentSubtitle = null
+
+  transcriptionState.confirmedSubtitles = []
+  transcriptionState.currentSubtitle = null
 
   broadcast({ type: 'clear' })
 }

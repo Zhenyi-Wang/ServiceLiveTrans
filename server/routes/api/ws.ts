@@ -1,27 +1,23 @@
 import type { WSMessage } from '../../../types/websocket'
 import { addConnection, removeConnection, sendTo } from '../../utils/websocket'
-import { simulationState } from '../../utils/simulator'
+import { transcriptionState } from '../../utils/transcription-state'
 
 export default defineWebSocketHandler({
   open(peer) {
-    // 添加连接
     addConnection(peer)
-
     console.log(`WebSocket connected: ${peer}`)
 
-    // 发送初始化消息
     const initMessage: WSMessage = {
       type: 'init',
       data: {
-        current: simulationState.currentSubtitle?.text ?? null,
-        confirmed: simulationState.confirmedSubtitles
+        current: transcriptionState.currentSubtitle?.text ?? null,
+        confirmed: transcriptionState.confirmedSubtitles
       }
     }
     sendTo(peer, initMessage)
   },
 
   close(peer) {
-    // 移除连接
     removeConnection(peer)
     console.log(`WebSocket disconnected: ${peer}`)
   },
