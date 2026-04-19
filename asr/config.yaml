@@ -1,0 +1,20 @@
+server:
+  host: "0.0.0.0"
+  port: 9900
+  idle_timeout: 300
+  check_interval: 60
+
+whisper:
+  # 模型路径支持 $WHISPER_MODEL_PATH 环境变量覆盖（在 config.py 中处理）
+  model: "../livetrans/whisperlive/models/faster-whisper-large-v3"
+  device: "cuda"
+  compute_type: "int8"
+  local_files_only: true
+  vad_filter: true
+  vad_parameters:
+    threshold: 0.5
+
+funasr:
+  model: "paraformer-zh-streaming"
+  vad_model: "fsmn-vad"
+  device: "cuda"
