@@ -36,7 +36,7 @@
 2. **Nuxt 服务** — 中间层 + 业务逻辑，管理与 Python 的 WS 长连接，负责 AI 优化、翻译、广播
 3. **浏览器** — 音频采集 + 字幕展示
 
-Python ASR 进程对前端完全透明。Nuxt 的 WS 消息格式（`current`/`confirmed`）保持不变，前端零改动。
+Nuxt 的 WS 消息格式（`current`/`confirmed`/`clear`）保持不变。前端字幕展示组件零改动，但需要新增音频采集相关代码（麦克风 composable、ASR 控制面板等）。
 
 ## Python ASR 进程设计
 
@@ -54,8 +54,8 @@ class ASRProvider(ABC):
     @abstractmethod
     async def stop(self) -> None: ...
 
-    def on_result(self, callback: Callable[[ASRResult], None]) -> None:
-        """注册结果回调"""
+    def set_result_queue(self, queue: asyncio.Queue) -> None:
+        """设置结果队列，Provider 通过 queue.put_nowait() 发送结果"""
 ```
 
 ### 转录结果类型
@@ -95,19 +95,21 @@ class ModelManager:
     current_provider: str | None
     current_model: ASRProvider | None
     last_activity: float
-    lock: threading.Lock
+    lock: asyncio.Lock              # async 安全的锁
+    _shutdown: asyncio.Event         # 优雅退出信号
 
     async def ensure_loaded(self, provider: str, model_name: str) -> ASRProvider:
-        """按需加载，如果切换 provider 则先卸载旧的"""
-        if self.current_provider == provider:
+        """按需加载，如果切换 provider 则先卸载旧的。线程安全。"""
+        async with self.lock:
+            if self.current_provider == provider and self.current_model is not None:
+                self.last_activity = time.time()
+                return self.current_model
+            await self.unload()
+            self.current_model = create_provider(provider, model_name)
+            await self.current_model.start()
+            self.current_provider = provider
             self.last_activity = time.time()
             return self.current_model
-        await self.unload()
-        self.current_model = create_provider(provider, model_name)
-        await self.current_model.start()
-        self.current_provider = provider
-        self.last_activity = time.time()
-        return self.current_model
 
     async def unload(self) -> None:
         """卸载模型，释放 GPU 显存"""
@@ -122,12 +124,17 @@ class ModelManager:
 
     async def idle_monitor(self) -> None:
         """后台定时检查，空闲超时自动卸载"""
-        while True:
+        while not self._shutdown.is_set():
             if (self.current_model
                 and time.time() - self.last_activity > self.idle_timeout):
                 logger.info(f"空闲超时，卸载 {self.current_provider}")
                 await self.unload()
             await asyncio.sleep(60)
+
+    async def shutdown(self) -> None:
+        """优雅关闭"""
+        self._shutdown.set()
+        await self.unload()
 ```
 
 自动管理逻辑：
@@ -142,7 +149,7 @@ class ModelManager:
 **Nuxt → Python（主流程，极简）：**
 
 ```
-{ "type": "config", "provider": "whisper", "model": "large-v3" }  // 可选，切换 provider 时发
+{ "type": "config", "provider": "whisper", "model": "large-v3" }  // 连接时必须发送，后续可按需切换
 { "type": "audio", "data": "<base64 PCM>" }                       // 直接发音频
 ```
 
@@ -187,12 +194,71 @@ Python ASR 和模拟器是两个并列的数据源，共享相同的输出格式
 Python ASR (asr-bridge.ts) ──→ broadcast(current/confirmed) ──→ 前端
 ```
 
+**互斥控制：** 由 `POST /api/asr/start` 和 `POST /api/asr/stop` 管理。启动 ASR 时自动停止模拟器（调用 `stopSimulation()`），停止 ASR 时不自动恢复模拟器，需手动启动。
+
+**统一转录状态：** 引入 `TranscriptionState` 替代模拟器专用的 `SimulationState`，作为 provider-agnostic 的转录状态：
+
+```typescript
+interface TranscriptionState {
+  isActive: boolean
+  source: 'simulator' | 'asr' | null   // 当前数据源
+  currentSubtitle: CurrentSubtitle | null
+  confirmedSubtitles: ConfirmedSubtitle[]
+}
+```
+
+- `init` 消息从这个统一状态读取历史字幕，连接重连后可恢复
+- 模拟器和 ASR bridge 都写入同一个 `confirmedSubtitles` 列表
+- `GET /api/status` 返回统一状态（包含 source 字段区分数据源）
+
+### asr-bridge.ts
+
 ### asr-bridge.ts
 
 `asr-bridge.ts` 内部完成协议转换，Python 返回的 `partial`/`final` 映射到现有的 `current`/`confirmed`：
 
-- `partial` → `broadcast({ type: 'current', data: { text, ... } })`
-- `final` → `broadcast({ type: 'confirmed', data: { id, text, ... } })`
+**`partial` → `current` 映射规则：**
+
+```typescript
+let partialVersion = 0
+
+function onPartial(result: ASRResult) {
+  partialVersion++
+  broadcast({
+    type: 'current',
+    data: {
+      text: result.text,
+      enText: '',              // 翻译不在本次范围，留空
+      version: partialVersion,  // 每次递增，前端用于竞态处理
+      enVersion: 0
+    }
+  })
+}
+```
+
+- `version` 每次递增，与现有前端 `useSubtitles.ts` 的竞态逻辑兼容
+- `enText` 和 `enVersion` 留空，翻译是未来功能
+- 每次 `final` 到来时重置 `partialVersion = 0`
+
+**`final` → `confirmed` 映射规则：**
+
+```typescript
+function onFinal(result: ASRResult) {
+  partialVersion = 0  // 重置 partial 计数
+  const id = `asr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  broadcast({
+    type: 'confirmed',
+    data: {
+      id,
+      text: result.text,
+      optimizedText: '',     // AI 优化不在本次范围
+      enText: ''             // 翻译不在本次范围
+    }
+  })
+  // 同时清除 current
+  broadcast({ type: 'current', data: { text: '', enText: '', version: 0, enVersion: 0 } })
+}
+```
 
 ```typescript
 interface ASRBridgeConfig {
@@ -207,17 +273,27 @@ function stopASR(): void
 
 ### 音频流：浏览器麦克风
 
+使用 `AudioWorklet` + `AudioContext` 采集音频，在浏览器端完成采样率转换：
+
+```
+麦克风 → AudioContext(48kHz) → AudioWorklet(降采样到16kHz PCM) → base64 → WS 发给 Nuxt
+```
+
+- 采样率转换在浏览器端完成，Nuxt 端只做透传
+- chunk 大小：100ms（1600 samples × 2 bytes = 3200 bytes，base64 后约 4.3KB）
+- base64 编码的 PCM 直传，延迟优先（~43KB/s 带宽，符合实时优先原则）
+
 需要扩展前端→服务端的 WS 协议（目前是单向的）：
 
 ```typescript
 // 新增：前端 → 服务端
 type WSClientMessage =
-  | { type: 'audio', data: string }   // base64 PCM chunk
+  | { type: 'audio', data: string }   // base64 PCM chunk (16kHz, 16bit, mono)
 
 // 服务端 → 前端：保持不变，沿用现有 current/confirmed/clear
 ```
 
-流程：浏览器 `MediaRecorder` → 16kHz PCM → WS 发给 Nuxt → base64 编码 → WS 转发给 Python → 推理 → 结果广播给前端。
+新增 `composables/useAudioCapture.ts`：封装 AudioWorklet 初始化、采样率转换、base64 编码、WS 发送的完整流程。
 
 ### 音频流：直播流 URL
 
@@ -255,7 +331,7 @@ interface ASRState {
 | Python 进程未启动 | Nuxt 连接失败 | 显示"ASR 服务未连接" |
 | 模型加载失败 | `{ type: "error" }` | 日志 + 前端提示 |
 | 推理 OOM | 自动切 CPU 重试 | 日志警告 |
-| Python 进程崩溃 | 连接断开 | 自动重连 + 恢复模拟器模式 |
+| Python 进程崩溃 | 连接断开 | 自动重连（3秒间隔，最多10次），重连期间丢弃音频 chunk，重连失败后通知前端 |
 | Provider 依赖未安装 | 该 provider 禁用 | UI 隐藏该选项 |
 
 ## 项目结构
@@ -287,9 +363,11 @@ server/routes/api/
 │   ├── stop.ts               # [新增] 停止 ASR 会话
 │   └── status.ts             # [新增] ASR 状态查询
 ├── stream/
-│   └── start.ts              # [新增] 启动直播流拉取（ffmpeg）
+│   ├── start.ts              # [新增] 启动直播流拉取（ffmpeg）
+│   └── stop.ts               # [新增] 停止直播流拉取
 composables/
 ├── useWebSocket.ts           # [修改] 支持双向通信，增加音频发送
+├── useAudioCapture.ts        # [新增] AudioWorklet 音频采集 + 降采样
 components/admin/
 ├── ASRControlPanel.vue       # [新增] ASR 控制面板
 ├── ModelStatusPanel.vue      # [新增] 模型状态显示
@@ -309,7 +387,7 @@ server:
   check_interval: 60       # 秒
 
 whisper:
-  model: "../livetrans/whisperlive/models/faster-whisper-large-v3"
+  model: "${WHISPER_MODEL_PATH:-../livetrans/whisperlive/models/faster-whisper-large-v3}"
   device: "cuda"
   compute_type: "int8"
   local_files_only: true
@@ -322,6 +400,8 @@ funasr:
   vad_model: "fsmn-vad"
   device: "cuda"
 ```
+
+模型路径支持环境变量覆盖。`WHISPER_MODEL_PATH` 未设置时使用相对路径（工作目录为项目根）。
 
 whisper 配置复用 livetrans 的参数：本地 large-v3 微调模型、int8 量化、Silero VAD。
 
