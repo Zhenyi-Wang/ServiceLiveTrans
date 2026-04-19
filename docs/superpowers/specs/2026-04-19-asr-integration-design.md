@@ -99,7 +99,7 @@ class ModelManager:
     _shutdown: asyncio.Event         # 优雅退出信号
 
     async def ensure_loaded(self, provider: str, model_name: str) -> ASRProvider:
-        """按需加载，如果切换 provider 则先卸载旧的。线程安全。"""
+        """按需加载，如果切换 provider 则先卸载旧的。协程安全。"""
         async with self.lock:
             if self.current_provider == provider and self.current_model is not None:
                 self.last_activity = time.time()
@@ -211,11 +211,13 @@ interface TranscriptionState {
 - 模拟器和 ASR bridge 都写入同一个 `confirmedSubtitles` 列表
 - `GET /api/status` 返回统一状态（包含 source 字段区分数据源）
 
-### asr-bridge.ts
+**迁移方式：** 保留现有 `SimulationState` 不删除，新增 `TranscriptionState`。模拟器改为写入 `TranscriptionState`，`ws.ts` 的 `init` 消息改为从 `TranscriptionState` 读取。`SimulationState` 中的 `isRunning`/`config` 等模拟器专属字段保留在模拟器内部，不迁移。`WSInitData` 类型不变，`current` 字段仍为 `string | null`。
+
+**confirmed ID 前缀约定：** 模拟器生成的 ID 前缀为 `subtitle-`，ASR 生成的 ID 前缀为 `asr-`。前缀不同便于调试区分数据来源。
 
 ### asr-bridge.ts
 
-`asr-bridge.ts` 内部完成协议转换，Python 返回的 `partial`/`final` 映射到现有的 `current`/`confirmed`：
+`asr-bridge.ts` 内部完成协议转换，Python 返回的 `partial`/`final` 映射到现有的 `current`/`confirmed`。消息处理是顺序的（Node.js 单线程事件循环保证），不存在并发问题。
 
 **`partial` → `current` 映射规则：**
 
@@ -239,6 +241,7 @@ function onPartial(result: ASRResult) {
 - `version` 每次递增，与现有前端 `useSubtitles.ts` 的竞态逻辑兼容
 - `enText` 和 `enVersion` 留空，翻译是未来功能
 - 每次 `final` 到来时重置 `partialVersion = 0`
+- ASR 返回的 `language` 字段当前忽略，中英文结果统一填入 `text` 字段。语言感知路由在翻译功能实现时添加
 
 **`final` → `confirmed` 映射规则：**
 
@@ -267,7 +270,7 @@ interface ASRBridgeConfig {
   model: string
 }
 
-function startASR(config: ASRBridgeConfig): boolean
+function startASR(config: ASRBridgeConfig, source: 'mic' | 'stream', streamUrl?: string): boolean
 function stopASR(): void
 ```
 
