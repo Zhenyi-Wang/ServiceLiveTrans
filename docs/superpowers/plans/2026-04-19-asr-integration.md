@@ -1698,8 +1698,6 @@ export function startStream(url: string): boolean {
   ffmpegProcess.on('close', (code) => {
     console.log(`[Stream] ffmpeg 退出, code=${code}`)
     ffmpegProcess = null
-  })    console.log(`[Stream] ffmpeg 退出, code=${code}`)
-    ffmpegProcess = null
   })
 
   ffmpegProcess.on('error', (err) => {
