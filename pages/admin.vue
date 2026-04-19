@@ -7,14 +7,15 @@ definePageMeta({
 const isRunning = ref(false)
 const isLoading = ref(false)
 const status = ref<{
-  isRunning: boolean
+  isActive: boolean
+  source: string | null
   connectionCount: number
   subtitleCount: number
-  config: {
-    optimizationDelay: number
-    delayRandomRange: number
-  }
 } | null>(null)
+
+// ASR 相关状态
+const asrIsRunning = ref(false)
+const asrIsLoading = ref(false)
 
 // WS 测试相关
 const wsMessageType = ref<string>('current')
@@ -102,7 +103,8 @@ const fetchStatus = async () => {
   try {
     const response = await $fetch('/api/status')
     status.value = response as typeof status.value
-    isRunning.value = (response as any).isRunning
+    isRunning.value = (response as any).isActive
+    asrIsRunning.value = (response as any).source === 'asr'
   } catch (error) {
     console.error('Failed to fetch status:', error)
   }
@@ -149,6 +151,36 @@ const handleClear = async () => {
     console.error('Failed to clear subtitles:', error)
   } finally {
     isLoading.value = false
+  }
+}
+
+// ASR 控制
+const handleASRStart = async (config: { provider: string; model: string; source: string; streamUrl?: string }) => {
+  asrIsLoading.value = true
+  try {
+    await $fetch('/api/asr/start', {
+      method: 'POST',
+      body: config
+    })
+    asrIsRunning.value = true
+    await fetchStatus()
+  } catch (error) {
+    console.error('Failed to start ASR:', error)
+  } finally {
+    asrIsLoading.value = false
+  }
+}
+
+const handleASRStop = async () => {
+  asrIsLoading.value = true
+  try {
+    await $fetch('/api/asr/stop', { method: 'POST' })
+    asrIsRunning.value = false
+    await fetchStatus()
+  } catch (error) {
+    console.error('Failed to stop ASR:', error)
+  } finally {
+    asrIsLoading.value = false
   }
 }
 
@@ -226,8 +258,8 @@ onUnmounted(() => {
       <!-- Status bar -->
       <div class="status-bar">
         <div class="status-item">
-          <span class="status-dot" :class="{ active: isRunning }"></span>
-          <span class="status-text">{{ isRunning ? 'BROADCASTING' : 'STANDBY' }}</span>
+          <span class="status-dot" :class="{ active: isRunning || asrIsRunning }"></span>
+          <span class="status-text">{{ (isRunning || asrIsRunning) ? 'BROADCASTING' : 'STANDBY' }}</span>
         </div>
         <div class="status-divider"></div>
         <div class="status-item">
@@ -254,6 +286,17 @@ onUnmounted(() => {
           @stop="handleStop"
           @clear="handleClear"
         />
+
+        <!-- ASR 控制面板 -->
+        <ASRControlPanel
+          :is-running="asrIsRunning"
+          :is-loading="asrIsLoading"
+          @start="handleASRStart"
+          @stop="handleASRStop"
+        />
+
+        <!-- 模型状态面板 -->
+        <ModelStatusPanel />
 
         <!-- WS 测试面板 -->
         <div class="ws-test-panel">
