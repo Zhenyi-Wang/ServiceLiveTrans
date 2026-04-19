@@ -1,6 +1,7 @@
 import type { WSMessage } from '../../../types/websocket'
 import { addConnection, removeConnection, sendTo } from '../../utils/websocket'
 import { transcriptionState } from '../../utils/transcription-state'
+import { sendAudioChunk } from '../../utils/asr-bridge'
 
 export default defineWebSocketHandler({
   open(peer) {
@@ -15,6 +16,17 @@ export default defineWebSocketHandler({
       }
     }
     sendTo(peer, initMessage)
+  },
+
+  message(peer, message) {
+    try {
+      const data = JSON.parse(message as string)
+      if (data.type === 'audio' && data.data) {
+        sendAudioChunk(data.data)
+      }
+    } catch {
+      // 忽略非 JSON 消息
+    }
   },
 
   close(peer) {
