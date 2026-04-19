@@ -41,7 +41,7 @@ async def handle_connection(websocket):
     logger.info(f"客户端连接: {websocket.remote_address}")
 
     available = get_available_providers()
-    await websocket.send(encode_message({
+    await websocket.send(json.dumps({
         "type": "ready",
         "available_providers": available,
     }))
@@ -175,7 +175,7 @@ async def main():
         loop.add_signal_handler(sig, _signal_handler)
 
     logger.info(f"ASR 服务启动: ws://{config.server_host}:{config.server_port}")
-    async with serve(handler, config.server_host, config.server_port):
+    async with serve(handler, config.server_host, config.server_port, ping_interval=None, ping_timeout=None):
         await stop
 
     logger.info("正在关闭...")
