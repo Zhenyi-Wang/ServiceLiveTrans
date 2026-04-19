@@ -89,6 +89,10 @@ async def handle_config(websocket, msg: dict):
         await websocket.send(encode_message(ErrorMessage(message="Missing provider")))
         return
 
+    if manager.is_loaded and manager.current_provider != provider:
+        await manager.unload()
+        await websocket.send(encode_message(UnloadedEvent()))
+
     await websocket.send(encode_message(LoadingEvent()))
     try:
         model_inst = await manager.ensure_loaded(provider, model)
