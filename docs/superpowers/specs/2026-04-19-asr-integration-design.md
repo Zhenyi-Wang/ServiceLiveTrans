@@ -36,7 +36,7 @@
 2. **Nuxt 服务** — 中间层 + 业务逻辑，管理与 Python 的 WS 长连接，负责 AI 优化、翻译、广播
 3. **浏览器** — 音频采集 + 字幕展示
 
-Nuxt 的 WS 消息格式（`current`/`confirmed`/`clear`）保持不变。前端字幕展示组件零改动，但需要新增音频采集相关代码（麦克风 composable、ASR 控制面板等）。
+Nuxt 的 WS 消息格式（`current`/`confirmed`/`clear`）保持不变。前端字幕展示组件零改动，但 WebSocket composable 需扩展以支持音频上行，并需要新增音频采集相关代码（麦克风 composable、ASR 控制面板等）。
 
 ## Python ASR 进程设计
 
