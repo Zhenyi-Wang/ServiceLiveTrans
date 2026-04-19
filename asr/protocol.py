@@ -1,10 +1,9 @@
 """WebSocket 消息协议定义"""
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
 import json
-from dataclasses import asdict
-from typing import Literal
+from typing import Literal, Union
 
 
 class MessageType(str, Enum):
@@ -21,14 +20,13 @@ class MessageType(str, Enum):
     LOADING = "loading"
     READY = "ready"
     UNLOADED = "unloaded"
-    MODEL_STATUS_RESP = "model/status"
 
 
 @dataclass
 class ASRResult:
     type: Literal["partial", "final"]
     text: str
-    language: str  # "zh" | "en"
+    language: Literal["zh", "en"]
 
 
 # --- Nuxt → Python ---
@@ -68,14 +66,14 @@ class ModelStatusMessage:
 class PartialResult:
     type: Literal["partial"] = "partial"
     text: str = ""
-    language: str = "zh"
+    language: Literal["zh", "en"] = "zh"
 
 
 @dataclass
 class FinalResult:
     type: Literal["final"] = "final"
     text: str = ""
-    language: str = "zh"
+    language: Literal["zh", "en"] = "zh"
 
 
 @dataclass
@@ -108,11 +106,30 @@ class ModelStatusResponse:
     idle_seconds: float = 0.0
 
 
-def decode_message(raw: str) -> dict:
-    """解析客户端发来的 JSON 消息"""
-    return json.loads(raw)
+AnyMessage = Union[
+    ConfigMessage, AudioMessage, ModelLoadMessage, ModelUnloadMessage,
+    ModelStatusMessage, PartialResult, FinalResult, ErrorMessage,
+    LoadingEvent, ReadyEvent, UnloadedEvent, ModelStatusResponse,
+]
+
+_CLIENT_MSG_TYPES: dict[str, type] = {
+    "config": ConfigMessage,
+    "audio": AudioMessage,
+    "model/load": ModelLoadMessage,
+    "model/unload": ModelUnloadMessage,
+    "model/status": ModelStatusMessage,
+}
 
 
-def encode_message(msg) -> str:
+def decode_message(raw: str) -> AnyMessage:
+    """解析客户端发来的 JSON 消息为对应 dataclass"""
+    data = json.loads(raw)
+    cls = _CLIENT_MSG_TYPES.get(data.get("type", ""))
+    if cls is None:
+        raise ValueError(f"Unknown message type: {data.get('type')}")
+    return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+def encode_message(msg: AnyMessage) -> str:
     """将 dataclass 消息编码为 JSON"""
     return json.dumps(asdict(msg))
