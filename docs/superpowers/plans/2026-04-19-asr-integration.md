@@ -428,11 +428,8 @@ class WhisperProvider(ASRProvider):
         MIN_CHUNK_DURATION = 1.0  # 最小 1s
         MAX_CHUNK_DURATION = 5.0  # 最大 5s（防止过长延迟）
         SAMPLE_RATE = 16000
-        SILENCE_TIMEOUT = 0.8    # 静音 0.8s 触发推理
         min_samples = int(MIN_CHUNK_DURATION * SAMPLE_RATE)
         max_samples = int(MAX_CHUNK_DURATION * SAMPLE_RATE)
-
-        last_audio_time = 0.0
 
         while self._is_running:
             await asyncio.sleep(0.2)
@@ -1316,6 +1313,7 @@ export function stopASR(): void {
   status = 'disconnected'
   config = null
   partialVersion = 0
+  resultQueue = []
 }
 
 export function getASRStatus() {
@@ -1696,7 +1694,11 @@ export function startStream(url: string): boolean {
   ffmpegProcess.stderr?.on('data', () => {
     // ffmpeg 进度信息，静默
   })
+
+  ffmpegProcess.on('close', (code) => {
     console.log(`[Stream] ffmpeg 退出, code=${code}`)
+    ffmpegProcess = null
+  })    console.log(`[Stream] ffmpeg 退出, code=${code}`)
     ffmpegProcess = null
   })
 
