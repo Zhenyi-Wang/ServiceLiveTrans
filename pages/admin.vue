@@ -320,7 +320,7 @@ onUnmounted(() => {
         />
 
         <!-- ASR 控制面板 -->
-        <ASRControlPanel
+        <AdminASRControlPanel
           :is-running="asrIsRunning"
           :is-loading="asrIsLoading"
           @start="handleASRStart"
@@ -328,7 +328,7 @@ onUnmounted(() => {
         />
 
         <!-- 直播转录控制 -->
-        <LiveTransControl
+        <AdminLiveTransControl
           :is-running="liveIsRunning"
           :is-loading="liveIsLoading"
           @start="handleLiveStart"
@@ -336,7 +336,7 @@ onUnmounted(() => {
         />
 
         <!-- 模型状态面板 -->
-        <ModelStatusPanel />
+        <AdminModelStatusPanel />
 
         <!-- WS 测试面板 -->
         <div class="ws-test-panel">
