@@ -1,5 +1,5 @@
 import type { CurrentSubtitle, ConfirmedSubtitle } from '~/types/subtitle'
-import type { WSMessage } from '~/types/websocket'
+import type { WSAIProcessedData, WSMessage } from '~/types/websocket'
 import type { ConnectionStatus } from './useWebSocket'
 
 export type LanguageMode = 'chinese' | 'english' | 'bilingual'
@@ -87,6 +87,17 @@ export function useSubtitles() {
             currentSubtitle.value = null
             currentVersion.value = 0
             currentEnVersion.value = 0
+          }
+        }
+        break
+
+      case 'ai-processed':
+        if (message.data && 'id' in message.data) {
+          const data = message.data as WSAIProcessedData
+          const existing = confirmedSubtitles.value.find(s => s.id === data.id)
+          if (existing) {
+            existing.optimizedText = data.optimizedText
+            existing.enText = data.enText
           }
         }
         break
