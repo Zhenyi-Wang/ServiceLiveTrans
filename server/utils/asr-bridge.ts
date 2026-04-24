@@ -1,7 +1,8 @@
-import type { WSMessage, WSCurrentData, WSConfirmedData } from '../../types/websocket'
+import type { WSMessage, WSCurrentData, WSConfirmedData, WSAIProcessedData } from '../../types/websocket'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
 import { stopSimulation } from './simulator'
+import { processAI } from './ai-processor'
 
 type BridgeStatus = 'disconnected' | 'connecting' | 'connected'
 
@@ -9,6 +10,7 @@ let ws: ReturnType<typeof import('ws').WebSocket> | null = null
 let status: BridgeStatus = 'disconnected'
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let config: { url: string; provider: string; model: string } | null = null
+let onReadyCallback: (() => void) | null = null
 
 let partialVersion = 0
 
@@ -43,6 +45,9 @@ function connect() {
           console.log('[ASR Bridge] 模型加载中...')
         } else if (msg.type === 'ready') {
           console.log('[ASR Bridge] 模型就绪')
+          if (onReadyCallback) {
+            onReadyCallback()
+          }
         } else if (msg.type === 'unloaded') {
           console.log('[ASR Bridge] 模型已卸载')
         }
@@ -66,6 +71,10 @@ function connect() {
     console.error('[ASR Bridge] 创建连接失败:', e)
     scheduleReconnect()
   }
+}
+
+export function setOnReadyCallback(cb: (() => void) | null): void {
+  onReadyCallback = cb
 }
 
 function scheduleReconnect() {
@@ -97,6 +106,7 @@ function processResult(result: { type: string; text: string; language: string })
   } else if (result.type === 'final') {
     partialVersion = 0
     const id = `asr-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+
     const data: WSConfirmedData = {
       id,
       text: result.text,
@@ -104,13 +114,22 @@ function processResult(result: { type: string; text: string; language: string })
       enText: ''
     }
     broadcast({ type: 'confirmed', data })
-
     broadcast({ type: 'current', data: { text: '', enText: '', version: 0, enVersion: 0 } })
+
     transcriptionState.currentSubtitle = null
     transcriptionState.confirmedSubtitles.push({
       id,
       text: result.text,
       timestamp: Date.now()
+    })
+
+    processAI(result.text).then(ai => {
+      broadcast({ type: 'ai-processed', data: { id, optimizedText: ai.optimizedText, enText: ai.enText } })
+      const subtitle = transcriptionState.confirmedSubtitles.find(s => s.id === id)
+      if (subtitle) {
+        subtitle.optimizedText = ai.optimizedText
+        subtitle.enText = ai.enText
+      }
     })
   }
 }
@@ -151,6 +170,7 @@ export function stopASR(): void {
   }
 
   status = 'disconnected'
+  onReadyCallback = null
   config = null
   partialVersion = 0
 }
