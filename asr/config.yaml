@@ -18,10 +18,10 @@ gguf:
   temperature: 0.4
   n_ctx: 2048
   verbose: false
-  # VAD 参数 (RMS 能量检测)
-  vad_threshold: 0.005
+  # VAD 参数 (Silero VAD)
+  vad_threshold: 0.5
   vad_max_buffer_sec: 10.0
   vad_min_buffer_sec: 0.5
-  vad_silence_ms: 500
+  vad_silence_ms: 300
   # 句末标点 flush 最小字数（不含标点）
   sentence_min_len: 5

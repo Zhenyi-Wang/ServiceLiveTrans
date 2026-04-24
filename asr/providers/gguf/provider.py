@@ -14,10 +14,12 @@ from asr.protocol import ASRResult
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
+VAD_CHUNK_SIZE = 512  # Silero VAD 输入块大小（32ms @ 16kHz）
+VAD_CONTEXT_SIZE = 64  # Silero VAD context 大小
 
 
 class GGUFProvider(ASRProvider):
-    """GGUF Provider: RMS 能量检测 + Qwen3-ASR GGUF Engine"""
+    """GGUF Provider: Silero VAD + Qwen3-ASR GGUF Engine"""
 
     def __init__(self, config: dict):
         super().__init__()
@@ -36,12 +38,13 @@ class GGUFProvider(ASRProvider):
 
         # 缓冲策略
         self.max_buffer_sec = config.get("vad_max_buffer_sec", 10.0)
-        self.min_buffer_sec = config.get("vad_min_buffer_sec", 0.5)  # 降低最小缓冲
-        self.silence_rms = config.get("vad_threshold", 0.005)  # 降低阈值
-        self.silence_check_ms = config.get("vad_silence_ms", 500)
+        self.min_buffer_sec = config.get("vad_min_buffer_sec", 0.5)
+        self.vad_threshold = config.get("vad_threshold", 0.5)
+        self.silence_check_ms = config.get("vad_silence_ms", 300)
         self.sentence_min_len = config.get("sentence_min_len", 5)
 
         self._engine = None
+        self._vad_session = None
         self._is_running = False
         self._process_task: asyncio.Task | None = None
         self._audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
@@ -53,9 +56,37 @@ class GGUFProvider(ASRProvider):
     async def start(self) -> None:
         self._loop = asyncio.get_event_loop()
         await self._load_engine()
+        self._load_vad()
         self._is_running = True
         self._process_task = asyncio.create_task(self._process_loop())
         logger.info(f"GGUF Provider 已启动 (model_dir={self.model_dir})")
+
+    def _load_vad(self) -> None:
+        import onnxruntime as ort
+
+        vad_path = Path(__file__).parent / "silero_vad.onnx"
+        opts = ort.SessionOptions()
+        opts.inter_op_num_threads = 1
+        opts.intra_op_num_threads = 1
+        self._vad_session = ort.InferenceSession(str(vad_path), sess_options=opts)
+        self._vad_state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._vad_context = np.zeros((1, VAD_CONTEXT_SIZE), dtype=np.float32)
+        logger.info("Silero VAD 已加载")
+
+    def _reset_vad(self) -> None:
+        self._vad_state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._vad_context = np.zeros((1, VAD_CONTEXT_SIZE), dtype=np.float32)
+
+    def _vad_prob(self, audio: np.ndarray) -> float:
+        """返回音频块的语音概率 (0.0~1.0)，audio 长度必须为 VAD_CHUNK_SIZE"""
+        chunk = audio.reshape(1, -1)
+        x = np.concatenate([self._vad_context, chunk], axis=1)
+        out, self._vad_state = self._vad_session.run(
+            None,
+            {"input": x, "state": self._vad_state, "sr": np.array(SAMPLE_RATE, dtype=np.int64)},
+        )
+        self._vad_context = chunk[:, -VAD_CONTEXT_SIZE:]
+        return float(out[0][0])
 
     async def _load_engine(self) -> None:
         from .qwen_asr_gguf.inference.schema import ASREngineConfig
@@ -94,7 +125,6 @@ class GGUFProvider(ASRProvider):
 
         if self._process_task:
             try:
-                # 等待更长时间让推理完成
                 await asyncio.wait_for(self._process_task, timeout=30.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 self._process_task.cancel()
@@ -115,16 +145,14 @@ class GGUFProvider(ASRProvider):
     async def send_audio(self, chunk: bytes) -> None:
         await self._audio_queue.put(chunk)
 
-    def _is_silence(self, audio: np.ndarray) -> bool:
-        """RMS 能量检测静音"""
-        rms = np.sqrt(np.mean(audio ** 2))
-        return rms < self.silence_rms
-
     async def _process_loop(self) -> None:
         buffer = np.array([], dtype=np.float32)
-        silence_samples = int(self.silence_check_ms / 1000 * SAMPLE_RATE)
         max_buffer_samples = int(self.max_buffer_sec * SAMPLE_RATE)
         min_buffer_samples = int(self.min_buffer_sec * SAMPLE_RATE)
+        silence_frames = int(self.silence_check_ms / 32)  # 每帧 32ms
+
+        self._reset_vad()
+        consecutive_silence = 0
 
         while self._is_running:
             try:
@@ -142,18 +170,32 @@ class GGUFProvider(ASRProvider):
             should_transcribe = False
 
             if buffer_len >= max_buffer_samples:
-                segment = buffer.copy()
-                buffer = np.array([], dtype=np.float32)
                 should_transcribe = True
-            elif buffer_len >= min_buffer_samples and buffer_len >= silence_samples:
-                tail = buffer[-silence_samples:]
-                if self._is_silence(tail):
-                    segment = buffer.copy()
-                    buffer = np.array([], dtype=np.float32)
-                    should_transcribe = True
+            elif buffer_len >= min_buffer_samples:
+                # 用 Silero VAD 检查末尾是否静音
+                tail = buffer[-silence_frames * VAD_CHUNK_SIZE:]
+                if len(tail) >= VAD_CHUNK_SIZE:
+                    # 对齐到 VAD_CHUNK_SIZE
+                    aligned_len = (len(tail) // VAD_CHUNK_SIZE) * VAD_CHUNK_SIZE
+                    tail_aligned = tail[:aligned_len]
+                    is_silence = True
+                    for i in range(0, len(tail_aligned), VAD_CHUNK_SIZE):
+                        prob = self._vad_prob(tail_aligned[i:i + VAD_CHUNK_SIZE])
+                        if prob >= self.vad_threshold:
+                            is_silence = False
+                            consecutive_silence = 0
+                            break
+                    if is_silence:
+                        consecutive_silence += 1
+                        if consecutive_silence >= 2:
+                            should_transcribe = True
 
             if should_transcribe:
                 logger.info(f"转录 {buffer_len/SAMPLE_RATE:.1f}s 音频")
+                segment = buffer.copy()
+                buffer = np.array([], dtype=np.float32)
+                consecutive_silence = 0
+                self._reset_vad()
                 await self._transcribe_segment(segment)
 
         if len(buffer) > 0:
@@ -201,7 +243,6 @@ class GGUFProvider(ASRProvider):
                 self._thread_pool, _run_blocking
             )
             self._asr_memory.append((audio_feature, text))
-            # 推理结束，flush 剩余未确认的文本
             if self._chunk_text_acc.strip():
                 self._emit(ASRResult(type="final", text=self._chunk_text_acc, language="zh"))
         except Exception as e:
@@ -210,8 +251,7 @@ class GGUFProvider(ASRProvider):
     async def _emit_token(self, piece: str) -> None:
         self._chunk_text_acc += piece
 
-        # 检测句末标点，满足长度阈值时 flush 为 final
-        sentence_end_punct = set("。！？；…")
+        sentence_end_punct = set("。！？；…，、：,.?!;:")
         if piece and piece[-1] in sentence_end_punct:
             text_no_punct = self._chunk_text_acc.rstrip("。！？；…，、：")
             if len(text_no_punct) >= self.sentence_min_len:
