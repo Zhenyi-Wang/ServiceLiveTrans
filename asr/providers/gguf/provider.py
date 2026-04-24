@@ -41,6 +41,7 @@ class GGUFProvider(ASRProvider):
         self.vad_threshold = config.get("vad_threshold", 0.5)
         self.silence_check_ms = config.get("vad_silence_ms", 300)
         self.sentence_min_len = config.get("sentence_min_len", 5)
+        self.overlap_sec = config.get("overlap_sec", 0.5)
 
         self._engine = None
         self._vad_session = None
@@ -197,8 +198,9 @@ class GGUFProvider(ASRProvider):
                     segment = buffer[:split].copy()
                     buffer = buffer[split:].copy()
                 else:
+                    overlap_samples = int(self.overlap_sec * SAMPLE_RATE)
                     segment = buffer.copy()
-                    buffer = np.array([], dtype=np.float32)
+                    buffer = buffer[-overlap_samples:].copy() if overlap_samples > 0 else np.array([], dtype=np.float32)
                 should_transcribe = True
             elif buffer_len >= min_buffer_samples:
                 tail = buffer[-silence_frames * VAD_CHUNK_SIZE:]
@@ -274,6 +276,14 @@ class GGUFProvider(ASRProvider):
         if len(segment) < min_samples:
             segment = np.pad(segment, (0, min_samples - len(segment)))
 
+        provider = self
+        partial_text: list[str] = []
+
+        def _on_token(piece: str) -> None:
+            partial_text.append(piece)
+            result = ASRResult(type="partial", text="".join(partial_text), language="zh")
+            provider._loop.call_soon_threadsafe(provider._result_queue.put_nowait, result)
+
         def _run_blocking():
             engine = self._engine
 
@@ -289,7 +299,7 @@ class GGUFProvider(ASRProvider):
             result = engine._safe_decode(
                 full_embd, prefix_text, self.rollback_num,
                 is_last_chunk=True, temperature=self.temperature,
-                streaming=False
+                streaming=True, on_token=_on_token
             )
             return (audio_feature, result.text)
 

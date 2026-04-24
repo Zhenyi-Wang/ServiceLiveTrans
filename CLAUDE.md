@@ -96,3 +96,9 @@ pnpm generate  # 生成静态站点
 ### Superpowers 工作流
 
 本项目使用 superpowers 插件进行规格驱动开发。
+
+## 经验教训
+
+详细记录见 `docs/experience/` 目录。
+
+- **asyncio.Queue 跨线程通信** — `asyncio.Queue` 不是线程安全的，从 worker 线程调用 `put_nowait()` 不会唤醒 event loop 上的 `await get()`，消息会堆积直到 event loop 重新获得控制权。必须使用 `loop.call_soon_threadsafe(queue.put_nowait, item)`。详见 [docs/experience/asyncio-queue-thread-safety.md](docs/experience/asyncio-queue-thread-safety.md)。
