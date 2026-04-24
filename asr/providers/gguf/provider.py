@@ -49,7 +49,6 @@ class GGUFProvider(ASRProvider):
         self._audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
         self._thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self._asr_memory: deque = deque(maxlen=self.memory_chunks)
-        self._chunk_text_acc = ""
         self._loop: asyncio.AbstractEventLoop | None = None
 
     async def start(self) -> None:
@@ -275,11 +274,8 @@ class GGUFProvider(ASRProvider):
         if len(segment) < min_samples:
             segment = np.pad(segment, (0, min_samples - len(segment)))
 
-        self._chunk_text_acc = ""
-
         def _run_blocking():
             engine = self._engine
-            loop = self._loop
 
             audio_feature, _ = engine.encoder.encode(segment)
             prefix_text = "".join([m[1] for m in self._asr_memory])
@@ -290,16 +286,10 @@ class GGUFProvider(ASRProvider):
                 combined_audio, prefix_text, None, self.language
             )
 
-            def on_token(piece: str):
-                if loop is not None:
-                    asyncio.run_coroutine_threadsafe(
-                        self._emit_token(piece), loop
-                    )
-
             result = engine._safe_decode(
                 full_embd, prefix_text, self.rollback_num,
                 is_last_chunk=True, temperature=self.temperature,
-                streaming=False, on_token=on_token
+                streaming=False
             )
             return (audio_feature, result.text)
 
@@ -308,20 +298,7 @@ class GGUFProvider(ASRProvider):
                 self._thread_pool, _run_blocking
             )
             self._asr_memory.append((audio_feature, text))
-            if self._chunk_text_acc.strip():
-                self._emit(ASRResult(type="final", text=self._chunk_text_acc, language="zh"))
+            if text.strip():
+                self._emit(ASRResult(type="final", text=text, language="zh"))
         except Exception as e:
             logger.error(f"GGUF 推理错误: {e}")
-
-    async def _emit_token(self, piece: str) -> None:
-        self._chunk_text_acc += piece
-
-        sentence_end_punct = set("。！？；…，、：,.?!;:")
-        if piece and piece[-1] in sentence_end_punct:
-            text_no_punct = self._chunk_text_acc.rstrip("。！？；…，、：")
-            if len(text_no_punct) >= self.sentence_min_len:
-                self._emit(ASRResult(type="final", text=self._chunk_text_acc, language="zh"))
-                self._chunk_text_acc = ""
-                return
-
-        self._emit(ASRResult(type="partial", text=self._chunk_text_acc, language="zh"))

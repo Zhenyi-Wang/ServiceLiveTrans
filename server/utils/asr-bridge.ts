@@ -1,3 +1,4 @@
+import { WebSocket } from 'ws'
 import type { WSMessage, WSCurrentData, WSConfirmedData, WSAIProcessedData } from '../../types/websocket'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
@@ -6,7 +7,7 @@ import { processAI } from './ai-processor'
 
 type BridgeStatus = 'disconnected' | 'connecting' | 'connected'
 
-let ws: ReturnType<typeof import('ws').WebSocket> | null = null
+let ws: WebSocket | null = null
 let status: BridgeStatus = 'disconnected'
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let config: { url: string; provider: string; model: string } | null = null
@@ -20,7 +21,6 @@ function connect() {
   status = 'connecting'
 
   try {
-    const WebSocket = require('ws')
     ws = new WebSocket(config.url)
 
     ws.on('open', () => {
