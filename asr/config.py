@@ -38,12 +38,10 @@ class ASRConfig:
     def check_interval(self) -> int:
         return self._require("server", "check_interval")
 
-    def whisper_config(self) -> dict:
-        cfg = dict(self._require("whisper"))
-        env_model = os.environ.get("WHISPER_MODEL_PATH")
-        if env_model:
-            cfg["model"] = env_model
+    def gguf_config(self) -> dict:
+        cfg = dict(self._require("gguf"))
+        env_model_dir = os.environ.get("GGUF_MODEL_DIR")
+        if env_model_dir:
+            cfg["model_dir"] = env_model_dir
+        cfg["model_dir"] = os.path.expanduser(cfg["model_dir"])
         return cfg
-
-    def funasr_config(self) -> dict:
-        return dict(self._require("funasr"))

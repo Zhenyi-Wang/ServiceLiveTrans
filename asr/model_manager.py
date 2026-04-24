@@ -11,12 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 def create_provider(provider: str, model_name: str, config_loader) -> ASRProvider:
-    if provider == "whisper":
-        from asr.providers.whisper import WhisperProvider
-        return WhisperProvider(config_loader.whisper_config())
-    elif provider == "funasr":
-        from asr.providers.funasr import FunASRProvider
-        return FunASRProvider(config_loader.funasr_config())
+    if provider == "gguf":
+        from asr.providers.gguf import GGUFProvider
+        return GGUFProvider(config_loader.gguf_config())
     else:
         raise ValueError(f"Unknown provider: {provider}")
 
@@ -24,13 +21,9 @@ def create_provider(provider: str, model_name: str, config_loader) -> ASRProvide
 def get_available_providers() -> list[str]:
     providers = []
     try:
-        import faster_whisper
-        providers.append("whisper")
-    except ImportError:
-        pass
-    try:
-        from funasr import AutoModel
-        providers.append("funasr")
+        import onnxruntime
+        import gguf
+        providers.append("gguf")
     except ImportError:
         pass
     return providers
