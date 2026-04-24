@@ -1,13 +1,18 @@
 /**
+ * 直播转录状态
+ */
+export type LiveTransState = 'idle' | 'connecting' | 'running' | 'reconnecting'
+
+/**
  * WebSocket 消息类型
  */
-export type WSMessageType = 'init' | 'confirmed' | 'current' | 'clear'
+export type WSMessageType = 'init' | 'confirmed' | 'current' | 'clear' | 'status' | 'ai-processed'
 
 /**
  * 初始化消息数据
  */
 export interface WSInitData {
-  current: string | null  // 当前正在转录的中文
+  current: string | null
   confirmed: ConfirmedSubtitle[]
 }
 
@@ -16,19 +21,37 @@ export interface WSInitData {
  */
 export interface WSConfirmedData {
   id: string
-  text: string           // 中文原文
-  optimizedText: string  // AI 优化后的中文
-  enText: string         // 英文翻译
+  text: string
+  optimizedText: string
+  enText: string
 }
 
 /**
  * 当前输入消息数据
  */
 export interface WSCurrentData {
-  text: string           // 纯中文
-  enText: string         // 英文翻译（异步返回）
-  version: number        // 中文版本号（用于竞态处理）
-  enVersion: number      // 英文版本号（单独判断，有新翻译时更新）
+  text: string
+  enText: string
+  version: number
+  enVersion: number
+}
+
+/**
+ * 直播转录状态变化通知
+ */
+export interface WSStatusData {
+  state: LiveTransState
+  error?: string
+  reconnectCount?: number
+}
+
+/**
+ * AI 后处理完成通知
+ */
+export interface WSAIProcessedData {
+  id: string
+  optimizedText: string
+  enText: string
 }
 
 /**
@@ -36,9 +59,9 @@ export interface WSCurrentData {
  */
 export interface ConfirmedSubtitle {
   id: string
-  text: string           // 中文原文
-  optimizedText?: string  // AI 优化后的中文（可选）
-  enText?: string         // 英文翻译（可选）
+  text: string
+  optimizedText?: string
+  enText?: string
   timestamp: number
 }
 
@@ -47,5 +70,5 @@ export interface ConfirmedSubtitle {
  */
 export interface WSMessage {
   type: WSMessageType
-  data?: WSInitData | WSConfirmedData | WSCurrentData | null
+  data?: WSInitData | WSConfirmedData | WSCurrentData | WSStatusData | WSAIProcessedData | null
 }
