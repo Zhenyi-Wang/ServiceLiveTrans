@@ -17,18 +17,19 @@ let asrConnected = false
 let pendingAudio: Buffer[] = []
 let startTime: number | null = null
 let stateCheckInterval: ReturnType<typeof setInterval> | null = null
+let currentSourceType: 'flv' | 'mic' | null = null
 
 const DEFAULT_FLV_URL = process.env.FLV_STREAM_URL || 'http://mini:8080/live/livestream.flv'
 
 function _updateState(newState: LiveTransState, error?: string): void {
   state = newState
-  const status = audioSource?.getStatus()
+  const sourceStatus = audioSource?.getStatus()
   broadcast({
     type: 'status',
     data: {
       state,
       error,
-      reconnectCount: status?.reconnectCount
+      reconnectCount: sourceStatus?.reconnectCount
     }
   })
 }
@@ -50,8 +51,8 @@ function _onAudio(pcm: Buffer): void {
 
 function _onError(error: Error): void {
   console.error(`[LiveTrans] 音频源错误: ${error.message}`)
-  const status = audioSource?.getStatus()
-  if (status?.state === 'error') {
+  const sourceStatus = audioSource?.getStatus()
+  if (sourceStatus?.state === 'error') {
     _updateState('reconnecting', error.message)
   }
 }
@@ -73,6 +74,9 @@ async function start(config: LiveTransConfig): Promise<boolean> {
   if (state !== 'idle') {
     return false
   }
+
+  // 立即设置状态，防止并发 start() 竞态
+  _updateState('connecting')
 
   stopSimulation()
 
@@ -106,28 +110,41 @@ async function start(config: LiveTransConfig): Promise<boolean> {
   })
 
   // 3. 创建并启动音频源
-  _updateState('connecting')
-
-  if (config.sourceType === 'flv') {
-    const url = config.streamUrl || DEFAULT_FLV_URL
-    audioSource = new FLVSource(url)
-    audioSource.onAudio(_onAudio)
-    audioSource.onError(_onError)
-    await audioSource.start()
-  }
-
-  startTime = Date.now()
-
-  // 定期检查音频源状态
-  stateCheckInterval = setInterval(() => {
-    if (state === 'idle' || !audioSource) {
-      clearInterval(stateCheckInterval)
-      return
+  try {
+    if (config.sourceType === 'flv') {
+      const url = config.streamUrl || DEFAULT_FLV_URL
+      audioSource = new FLVSource(url)
+      audioSource.onAudio(_onAudio)
+      audioSource.onError(_onError)
+      await audioSource.start()
     }
-    _onAudioSourceStateChange()
-  }, 2000)
 
-  return true
+    currentSourceType = config.sourceType
+    startTime = Date.now()
+
+    // 定期检查音频源状态
+    stateCheckInterval = setInterval(() => {
+      if (state === 'idle' || !audioSource) {
+        clearInterval(stateCheckInterval)
+        return
+      }
+      _onAudioSourceStateChange()
+    }, 2000)
+
+    return true
+  } catch (e) {
+    console.error(`[LiveTrans] 音频源启动失败: ${e}`)
+    audioSource?.stop()
+    audioSource = null
+    currentSourceType = null
+    stopASR()
+    asrConnected = false
+    pendingAudio = []
+    transcriptionState.isActive = false
+    transcriptionState.source = null
+    _updateState('idle', `音频源启动失败: ${e instanceof Error ? e.message : String(e)}`)
+    return false
+  }
 }
 
 function stop(): void {
@@ -137,6 +154,7 @@ function stop(): void {
 
   audioSource?.stop()
   audioSource = null
+  currentSourceType = null
 
   if (stateCheckInterval) {
     clearInterval(stateCheckInterval)
@@ -163,7 +181,7 @@ function getStatus(): {
   const sourceStatus = audioSource?.getStatus()
   return {
     state,
-    sourceType: audioSource ? 'flv' : null,
+    sourceType: currentSourceType,
     reconnectCount: sourceStatus?.reconnectCount ?? 0,
     uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
   }
