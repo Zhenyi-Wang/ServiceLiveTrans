@@ -163,6 +163,27 @@ class GGUFProvider(ASRProvider):
                 break
 
             audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+
+            # 前置静音过滤（使用独立 state，不影响主 VAD 分段逻辑）
+            if len(buffer) == 0 and len(audio) >= VAD_CHUNK_SIZE:
+                aligned = audio[:(len(audio) // VAD_CHUNK_SIZE) * VAD_CHUNK_SIZE]
+                temp_state = np.zeros((2, 1, 128), dtype=np.float32)
+                temp_context = np.zeros((1, VAD_CONTEXT_SIZE), dtype=np.float32)
+                all_silence = True
+                for i in range(0, len(aligned), VAD_CHUNK_SIZE):
+                    chunk_vad = aligned[i:i + VAD_CHUNK_SIZE].reshape(1, -1)
+                    x = np.concatenate([temp_context, chunk_vad], axis=1)
+                    out, temp_state = self._vad_session.run(
+                        None,
+                        {"input": x, "state": temp_state, "sr": np.array(SAMPLE_RATE, dtype=np.int64)},
+                    )
+                    temp_context = chunk_vad[:, -VAD_CONTEXT_SIZE:]
+                    if float(out[0][0]) >= self.vad_threshold:
+                        all_silence = False
+                        break
+                if all_silence:
+                    continue
+
             buffer = np.concatenate([buffer, audio])
             buffer_len = len(buffer)
 
