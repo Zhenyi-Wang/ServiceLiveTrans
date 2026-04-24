@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-import os
 import numpy as np
 from collections import deque
 from pathlib import Path
@@ -149,7 +148,7 @@ class GGUFProvider(ASRProvider):
         buffer = np.array([], dtype=np.float32)
         max_buffer_samples = int(self.max_buffer_sec * SAMPLE_RATE)
         min_buffer_samples = int(self.min_buffer_sec * SAMPLE_RATE)
-        silence_frames = int(self.silence_check_ms / 32)  # 每帧 32ms
+        silence_frames = int(self.silence_check_ms / 32)
 
         self._reset_vad()
         consecutive_silence = 0
@@ -170,12 +169,20 @@ class GGUFProvider(ASRProvider):
             should_transcribe = False
 
             if buffer_len >= max_buffer_samples:
+                # 长缓冲：扫描最后 2 秒找静音间隙，找不到则强制截断
+                scan_window = min(buffer_len, 2 * SAMPLE_RATE)
+                gap_end = self._find_last_silence_gap(buffer[-scan_window:])
+                if gap_end is not None:
+                    split = buffer_len - scan_window + gap_end
+                    segment = buffer[:split].copy()
+                    buffer = buffer[split:].copy()
+                else:
+                    segment = buffer.copy()
+                    buffer = np.array([], dtype=np.float32)
                 should_transcribe = True
             elif buffer_len >= min_buffer_samples:
-                # 用 Silero VAD 检查末尾是否静音
                 tail = buffer[-silence_frames * VAD_CHUNK_SIZE:]
                 if len(tail) >= VAD_CHUNK_SIZE:
-                    # 对齐到 VAD_CHUNK_SIZE
                     aligned_len = (len(tail) // VAD_CHUNK_SIZE) * VAD_CHUNK_SIZE
                     tail_aligned = tail[:aligned_len]
                     is_silence = True
@@ -188,12 +195,12 @@ class GGUFProvider(ASRProvider):
                     if is_silence:
                         consecutive_silence += 1
                         if consecutive_silence >= 2:
+                            segment = buffer.copy()
+                            buffer = np.array([], dtype=np.float32)
                             should_transcribe = True
 
             if should_transcribe:
                 logger.info(f"转录 {buffer_len/SAMPLE_RATE:.1f}s 音频")
-                segment = buffer.copy()
-                buffer = np.array([], dtype=np.float32)
                 consecutive_silence = 0
                 self._reset_vad()
                 await self._transcribe_segment(segment)
@@ -201,6 +208,43 @@ class GGUFProvider(ASRProvider):
         if len(buffer) > 0:
             logger.info(f"处理剩余 {len(buffer)/SAMPLE_RATE:.1f}s 音频")
             await self._transcribe_segment(buffer)
+
+    def _find_last_silence_gap(self, audio: np.ndarray) -> int | None:
+        """扫描音频，找到最后一个静音间隙的结束位置（样本偏移量）。
+        静音间隙定义：连续 >= 200ms 的帧概率低于阈值。返回 None 表示没有找到。"""
+        min_gap_frames = max(int(200 / 32), 3)  # 至少 200ms
+        aligned_len = (len(audio) // VAD_CHUNK_SIZE) * VAD_CHUNK_SIZE
+        if aligned_len == 0:
+            return None
+
+        # 临时用独立 state 计算概率，不影响主 VAD state
+        import copy
+        state = np.zeros((2, 1, 128), dtype=np.float32)
+        context = np.zeros((1, VAD_CONTEXT_SIZE), dtype=np.float32)
+
+        probs = []
+        for i in range(0, aligned_len, VAD_CHUNK_SIZE):
+            chunk = audio[i:i + VAD_CHUNK_SIZE].reshape(1, -1)
+            x = np.concatenate([context, chunk], axis=1)
+            out, state = self._vad_session.run(
+                None,
+                {"input": x, "state": state, "sr": np.array(SAMPLE_RATE, dtype=np.int64)},
+            )
+            context = chunk[:, -VAD_CONTEXT_SIZE:]
+            probs.append(float(out[0][0]))
+
+        # 从后往前找连续静音区域
+        silence_count = 0
+        for i in range(len(probs) - 1, -1, -1):
+            if probs[i] < self.vad_threshold:
+                silence_count += 1
+                if silence_count >= min_gap_frames:
+                    # 返回静音区域的结束位置（样本偏移量）
+                    return (i + 1) * VAD_CHUNK_SIZE
+            else:
+                silence_count = 0
+
+        return None
 
     async def _transcribe_segment(self, segment: np.ndarray) -> None:
         if self._engine is None or self._loop is None:
