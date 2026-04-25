@@ -1,7 +1,7 @@
 /**
- * 直播转录状态
+ * 转录状态
  */
-export type LiveTransState = 'idle' | 'connecting' | 'running' | 'reconnecting'
+export type TranscriptionStateType = 'idle' | 'starting' | 'running' | 'error' | 'reconnecting'
 
 /**
  * WebSocket 消息类型
@@ -37,10 +37,11 @@ export interface WSCurrentData {
 }
 
 /**
- * 直播转录状态变化通知
+ * 转录状态变化通知
  */
 export interface WSStatusData {
-  state: LiveTransState
+  state: TranscriptionStateType
+  source?: string | null
   error?: string
   reconnectCount?: number
 }

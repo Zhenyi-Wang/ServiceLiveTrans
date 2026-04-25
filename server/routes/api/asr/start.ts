@@ -1,5 +1,4 @@
 import { transcriptionManager } from '../../../utils/transcription-manager'
-import { startASRProcess } from '../../../utils/asr-process'
 
 const VALID_SOURCES = ['mic', 'file', 'stream'] as const
 
@@ -23,25 +22,14 @@ export default defineEventHandler(async (event) => {
 
   const resolvedSource = (source || 'mic') as typeof VALID_SOURCES[number]
 
-  let spawned = false
-  try {
-    const result = await startASRProcess()
-    spawned = result !== null
-  } catch (error: any) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: error.message || 'ASR 进程启动失败'
-    })
-  }
-
-  const success = await transcriptionManager.start({
+  const result = await transcriptionManager.start({
     provider: provider || 'gguf',
     model: model || '',
     source: resolvedSource,
     streamUrl
   })
 
-  if (!success) {
+  if (!result.success) {
     throw createError({
       statusCode: 500,
       statusMessage: '转录启动失败'
@@ -50,7 +38,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
-    spawned,
+    spawned: result.spawned,
     provider,
     source: resolvedSource
   }

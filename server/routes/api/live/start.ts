@@ -1,5 +1,4 @@
 import { transcriptionManager } from '../../../utils/transcription-manager'
-import { startASRProcess } from '../../../utils/asr-process'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))
@@ -19,23 +18,12 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  let spawned = false
-  try {
-    const result = await startASRProcess()
-    spawned = result !== null
-  } catch (error: any) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: error.message || 'ASR 进程启动失败'
-    })
-  }
-
-  const success = await transcriptionManager.start({
+  const result = await transcriptionManager.start({
     provider: 'gguf',
     model: '',
     source: 'stream',
     streamUrl
   })
 
-  return { success, sourceType }
+  return { success: result.success, sourceType }
 })

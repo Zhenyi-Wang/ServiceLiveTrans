@@ -3,6 +3,7 @@ import type { WSMessage, WSCurrentData, WSConfirmedData } from '../../types/webs
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
 import { stopSimulation } from './simulator'
+import { startASRProcess, stopASRProcess } from './asr-process'
 import { processAI } from './ai-processor'
 import type { AudioSource, AudioSourceStatus } from './audio-source/base'
 import { FLVSource } from './audio-source/flv'
@@ -221,9 +222,9 @@ function _broadcastStatus(): void {
 // === 公开 API ===
 
 export const transcriptionManager = {
-  async start(config: StartConfig): Promise<boolean> {
+  async start(config: StartConfig): Promise<{ success: boolean; spawned: boolean }> {
     if (managerState !== 'idle') {
-      return false
+      return { success: false, spawned: false }
     }
 
     managerState = 'starting'
@@ -232,6 +233,19 @@ export const transcriptionManager = {
     _broadcastStatus()
 
     stopSimulation()
+
+    // spawn ASR 进程（如果未运行）
+    let spawned = false
+    try {
+      const result = await startASRProcess()
+      spawned = result !== null
+    } catch (error: any) {
+      managerState = 'idle'
+      currentSource = null
+      startTime = null
+      _broadcastStatus()
+      throw error
+    }
 
     // 连接 ASR Bridge
     const asrUrl = process.env.ASR_WS_URL || 'ws://localhost:9900'
@@ -297,11 +311,11 @@ export const transcriptionManager = {
         currentSource = null
         startTime = null
         _broadcastStatus()
-        return false
+        return { success: false, spawned }
       }
     }
 
-    return true
+    return { success: true, spawned }
   },
 
   stop(): void {
@@ -332,6 +346,8 @@ export const transcriptionManager = {
     transcriptionState.source = null
     transcriptionState.currentSubtitle = null
     transcriptionState.confirmedSubtitles = []
+
+    stopASRProcess()
   },
 
   sendAudioChunk(base64Pcm: string): boolean {
