@@ -15,6 +15,7 @@ gguf:
   language: "Chinese"
   rollback_num: 5
   memory_chunks: 2
+  overlap_sec: 0.1
   temperature: 0.4
   n_ctx: 2048
   verbose: false

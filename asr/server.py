@@ -12,6 +12,7 @@ import websockets
 from websockets.server import serve
 
 from asr.config import ASRConfig
+from asr.config_db import init_defaults, get, get_all, set_many
 from asr.model_manager import ModelManager, get_available_providers
 from asr.protocol import (
     ASRResult,
@@ -58,6 +59,9 @@ def get_health_data() -> dict:
 async def health_handler(path, request_headers):
     if path == "/health":
         body = json.dumps(get_health_data()).encode()
+        return (http.HTTPStatus.OK, [("Content-Type", "application/json")], body)
+    if path == "/config":
+        body = json.dumps(get_all()).encode()
         return (http.HTTPStatus.OK, [("Content-Type", "application/json")], body)
     return None
 
@@ -109,12 +113,20 @@ async def handle_connection(websocket):
         logger.info("客户端断开")
 
 
+DYNAMIC_CONFIG_KEYS = ("overlap_sec", "memory_chunks")
+
+
 async def handle_config(websocket, msg: dict):
     provider = msg.get("provider", "")
     model = msg.get("model", "")
     if not provider:
         await websocket.send(encode_message(ErrorMessage(message="Missing provider")))
         return
+
+    # 持久化动态配置到 SQLite
+    dynamic_config = {k: msg[k] for k in DYNAMIC_CONFIG_KEYS if k in msg}
+    if dynamic_config:
+        set_many(dynamic_config)
 
     if manager.is_loaded and manager.current_provider != provider:
         await manager.unload()
@@ -123,9 +135,11 @@ async def handle_config(websocket, msg: dict):
     await websocket.send(encode_message(LoadingEvent()))
     try:
         model_inst = await manager.ensure_loaded(provider, model)
+        for key, value in dynamic_config.items():
+            setattr(model_inst, key, value)
         model_inst.set_result_queue(result_queue)
         await websocket.send(encode_message(ReadyEvent()))
-        logger.info(f"Provider 就绪: {provider}")
+        logger.info(f"Provider 就绪: {provider}, 动态配置: {dynamic_config}")
     except Exception as e:
         logger.error(f"模型加载失败: {e}")
         await websocket.send(encode_message(ErrorMessage(message=f"Model load failed: {e}")))
@@ -182,6 +196,15 @@ async def result_forwarder(websocket):
 
 async def main():
     global manager
+
+    # 初始化 SQLite 默认配置
+    default_config = {
+        "overlap_sec": 0.1,
+        "memory_chunks": 2,
+    }
+    init_defaults(default_config)
+    logger.info(f"配置已从 SQLite 加载: {get_all()}")
+
     manager = ModelManager(idle_timeout=config.idle_timeout, config_loader=config)
     await manager.start_monitor()
 

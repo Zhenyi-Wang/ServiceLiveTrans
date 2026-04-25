@@ -154,3 +154,12 @@ export function getProcessInfo(): { pid: number | null; selfStarted: boolean } {
     selfStarted,
   }
 }
+
+export async function getASRConfig(): Promise<Record<string, unknown>> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${ASR_PORT}/config`)
+    return await response.json()
+  } catch {
+    return {}
+  }
+}

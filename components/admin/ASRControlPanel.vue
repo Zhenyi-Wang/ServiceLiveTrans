@@ -6,7 +6,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  start: [config: { provider: string; model: string; source: string; streamUrl?: string }]
+  start: [config: { provider: string; model: string; source: string; streamUrl?: string; overlapSec?: number; memoryChunks?: number }]
   stop: []
 }>()
 
@@ -93,10 +93,21 @@ const { pause: pauseHealthPoll, resume: resumeHealthPoll } = useIntervalFn(
   { immediate: false }
 )
 
+async function fetchASRConfig() {
+  try {
+    const data = await $fetch<Record<string, unknown>>('/api/asr/config')
+    if (data.overlap_sec !== undefined) advancedSettings.value.overlapSec = data.overlap_sec as number
+    if (data.memory_chunks !== undefined) advancedSettings.value.memoryChunks = data.memory_chunks as number
+  } catch {
+    // config API 不可用时忽略
+  }
+}
+
 // 首次 fetch 在 onMounted 中调用，确保只在客户端执行
 function startHealthPoll() {
   if (import.meta.client) {
     fetchServiceHealth()
+    fetchASRConfig()
     resumeHealthPoll()
   }
 }
@@ -104,7 +115,9 @@ const advancedSettings = ref({
   targetSampleRate: 16000,
   chunkDurationMs: 100,
   echoCancellation: true,
-  noiseSuppression: true
+  noiseSuppression: true,
+  overlapSec: 0.1,
+  memoryChunks: 2
 })
 
 let audioCapture: ReturnType<typeof useAudioCapture> | null = null
@@ -169,7 +182,9 @@ async function handleStart() {
     provider: provider.value,
     model: '',
     source: source.value,
-    ...(source.value === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {})
+    ...(source.value === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {}),
+    overlapSec: advancedSettings.value.overlapSec,
+    memoryChunks: advancedSettings.value.memoryChunks
   })
 }
 
@@ -474,6 +489,26 @@ onUnmounted(() => {
             <option :value="50">50</option>
             <option :value="100">100</option>
             <option :value="200">200</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">OVERLAP (sec)</label>
+          <select v-model.number="advancedSettings.overlapSec" class="form-input" :disabled="isRunning">
+            <option :value="0">0</option>
+            <option :value="0.05">0.05</option>
+            <option :value="0.1">0.1</option>
+            <option :value="0.3">0.3</option>
+            <option :value="0.5">0.5</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">MEMORY CHUNKS</label>
+          <select v-model.number="advancedSettings.memoryChunks" class="form-input" :disabled="isRunning">
+            <option :value="0">0</option>
+            <option :value="1">1</option>
+            <option :value="2">2</option>
+            <option :value="3">3</option>
+            <option :value="5">5</option>
           </select>
         </div>
         <div v-if="source === 'mic'" class="form-row advanced-check-row">
