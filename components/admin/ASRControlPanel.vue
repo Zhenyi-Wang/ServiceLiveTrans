@@ -11,7 +11,7 @@ const emit = defineEmits<{
 }>()
 
 const source = ref<'mic' | 'file'>('mic')
-const provider = ref('whisper')
+const provider = ref('gguf')
 
 const devices = ref<MediaDeviceInfo[]>([])
 const selectedDeviceId = ref<string>('')
@@ -60,6 +60,13 @@ const availableProviders = computed(() => {
     ? serviceHealth.value.available_providers!
     : ['gguf']
 })
+
+// 当可用 providers 变化时，自动切换到第一个
+watch(availableProviders, (providers) => {
+  if (providers.length > 0 && !providers.includes(provider.value)) {
+    provider.value = providers[0]
+  }
+}, { immediate: true })
 
 async function fetchServiceHealth() {
   try {
