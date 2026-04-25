@@ -1,14 +1,8 @@
-import { stopASR } from '../../../utils/asr-bridge'
-import { liveTransManager } from '../../../utils/live-trans-manager'
+import { transcriptionManager } from '../../../utils/transcription-manager'
 import { stopASRProcess } from '../../../utils/asr-process'
 
 export default defineEventHandler(() => {
-  const liveStatus = liveTransManager.getStatus()
-  if (liveStatus.state !== 'idle') {
-    liveTransManager.stop()
-  } else {
-    stopASR()
-  }
+  transcriptionManager.stop()
   stopASRProcess()
   return { success: true, message: 'ASR stopped' }
 })

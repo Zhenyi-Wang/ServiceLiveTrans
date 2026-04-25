@@ -1,5 +1,12 @@
-import { getASRStatus } from '../../../utils/asr-bridge'
+import { transcriptionManager } from '../../../utils/transcription-manager'
 
 export default defineEventHandler(() => {
-  return getASRStatus()
+  const status = transcriptionManager.getStatus()
+  return {
+    isActive: status.state !== 'idle',
+    bridgeStatus: status.asrConnected ? 'connected' : 'disconnected',
+    provider: status.asrProvider,
+    modelLoaded: status.asrConnected,
+    source: status.source
+  }
 })

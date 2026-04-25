@@ -1,4 +1,5 @@
-import { liveTransManager } from '../../../utils/live-trans-manager'
+import { transcriptionManager } from '../../../utils/transcription-manager'
+import { startASRProcess } from '../../../utils/asr-process'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))
@@ -11,18 +12,27 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const status = liveTransManager.getStatus()
-  if (status.state !== 'idle') {
+  if (transcriptionManager.isActive()) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Live transcription already running'
+      statusMessage: 'Transcription already running'
     })
   }
 
-  const success = await liveTransManager.start({ sourceType, streamUrl })
-
-  return {
-    success,
-    sourceType
+  let spawned = false
+  try {
+    const result = await startASRProcess()
+    spawned = result !== null
+  } catch {
+    // 进程已运行
   }
+
+  const success = await transcriptionManager.start({
+    provider: 'gguf',
+    model: '',
+    source: 'stream',
+    streamUrl
+  })
+
+  return { success, sourceType }
 })

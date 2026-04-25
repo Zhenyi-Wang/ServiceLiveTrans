@@ -1,6 +1,6 @@
-import { liveTransManager } from '../../../utils/live-trans-manager'
+import { transcriptionManager } from '../../../utils/transcription-manager'
 
 export default defineEventHandler(() => {
-  liveTransManager.stop()
+  transcriptionManager.stop()
   return { success: true }
 })
