@@ -12,7 +12,6 @@ const emit = defineEmits<{
 
 const source = ref<'mic' | 'file'>('mic')
 const provider = ref('whisper')
-const availableProviders = ['whisper', 'funasr']
 
 const devices = ref<MediaDeviceInfo[]>([])
 const selectedDeviceId = ref<string>('')
@@ -34,6 +33,56 @@ const micWaveform = useWaveformRenderer(micCanvasRef)
 const fileWaveform = useWaveformRenderer(fileCanvasRef)
 
 const showAdvanced = ref(false)
+
+const serviceHealth = ref<{
+  status: 'ok' | 'offline'
+  available_providers?: string[]
+  process?: { pid: number | null; selfStarted: boolean }
+}>({ status: 'offline' })
+
+const isStarting = ref(false)
+
+const serviceStatus = computed(() => {
+  if (isStarting.value) return 'starting'
+  if (props.isRunning) return 'ready'
+  return serviceHealth.value.status === 'ok' ? 'ready' : 'offline'
+})
+
+const serviceStatusText = computed(() => {
+  const s = serviceStatus.value
+  if (s === 'ready') return 'READY'
+  if (s === 'starting') return 'STARTING'
+  return 'OFFLINE'
+})
+
+const availableProviders = computed(() => {
+  return serviceHealth.value.available_providers?.length
+    ? serviceHealth.value.available_providers!
+    : ['gguf']
+})
+
+async function fetchServiceHealth() {
+  try {
+    const data = await $fetch<{
+      status: string
+      available_providers?: string[]
+      process?: { pid: number | null; selfStarted: boolean }
+    }>('/api/asr/service-health')
+    serviceHealth.value = {
+      status: data.status === 'ok' ? 'ok' : 'offline',
+      available_providers: data.available_providers,
+      process: data.process,
+    }
+  } catch {
+    serviceHealth.value = { status: 'offline' }
+  }
+}
+
+const { pause: pauseHealthPoll, resume: resumeHealthPoll } = useIntervalFn(
+  fetchServiceHealth,
+  3000,
+  { immediate: true }
+)
 const advancedSettings = ref({
   targetSampleRate: 16000,
   chunkDurationMs: 100,
@@ -117,7 +166,7 @@ async function handleStart() {
   emit('start', {
     provider: provider.value,
     model: '',
-    source: 'mic'
+    source: source.value
   })
 }
 
@@ -206,6 +255,7 @@ watch(() => filePlayer.waveformPeaks.value, (peaks) => {
 })
 
 onMounted(() => {
+  resumeHealthPoll()
   enumerateDevices()
   navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange)
   nextTick(() => {
@@ -214,6 +264,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  pauseHealthPoll()
   navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange)
   stopCapture()
   filePlayer.destroy()
@@ -235,6 +286,18 @@ onUnmounted(() => {
     </div>
 
     <div class="panel-content">
+      <!-- Service Status -->
+      <div class="form-row">
+        <label class="form-label">SERVICE</label>
+        <div class="service-status" :class="serviceStatus">
+          <span class="service-dot" />
+          <span class="service-text">{{ serviceStatusText }}</span>
+          <span v-if="serviceHealth.value.process?.selfStarted" class="service-pid">
+            PID {{ serviceHealth.value.process.pid }}
+          </span>
+        </div>
+      </div>
+
       <!-- Provider -->
       <div class="form-row">
         <label class="form-label">PROVIDER</label>
@@ -824,6 +887,54 @@ onUnmounted(() => {
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.service-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+}
+
+.service-status.ready {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.service-status.offline {
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  color: #64748b;
+}
+
+.service-status.starting {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.service-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.service-text {
+  font-weight: 600;
+}
+
+.service-pid {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 0.6rem;
 }
 
 @keyframes pulse {

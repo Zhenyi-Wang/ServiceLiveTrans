@@ -2,6 +2,7 @@
 from __future__ import annotations
 import asyncio
 import base64
+import http
 import json
 import logging
 import signal
@@ -33,6 +34,32 @@ config = ASRConfig()
 manager: ModelManager | None = None
 result_queue: asyncio.Queue[ASRResult] = asyncio.Queue()
 current_ws = None
+
+
+def get_health_data() -> dict:
+    gpu_used = 0
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_used = torch.cuda.memory_allocated() // (1024 * 1024)
+    except ImportError:
+        pass
+
+    return {
+        "status": "ok",
+        "available_providers": get_available_providers(),
+        "model_loaded": manager.is_loaded if manager else False,
+        "provider": manager.current_provider if manager else "",
+        "gpu_used_mb": gpu_used,
+        "idle_seconds": round(manager.idle_seconds, 1) if manager else 0.0,
+    }
+
+
+async def health_handler(path, request_headers):
+    if path == "/health":
+        body = json.dumps(get_health_data()).encode()
+        return (http.HTTPStatus.OK, [("Content-Type", "application/json")], body)
+    return None
 
 
 async def handle_connection(websocket):
@@ -179,7 +206,7 @@ async def main():
         loop.add_signal_handler(sig, _signal_handler)
 
     logger.info(f"ASR 服务启动: ws://{config.server_host}:{config.server_port}")
-    async with serve(handler, config.server_host, config.server_port, ping_interval=None, ping_timeout=None):
+    async with serve(handler, config.server_host, config.server_port, ping_interval=None, ping_timeout=None, process_request=health_handler):
         await stop
 
     logger.info("正在关闭...")

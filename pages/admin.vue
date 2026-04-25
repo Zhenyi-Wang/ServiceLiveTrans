@@ -168,10 +168,24 @@ const handleClear = async () => {
 const handleASRStart = async (config: { provider: string; model: string; source: string; streamUrl?: string }) => {
   asrIsLoading.value = true
   try {
-    await $fetch('/api/asr/start', {
+    const response = await $fetch<{ success: boolean; spawned?: boolean }>('/api/asr/start', {
       method: 'POST',
       body: config
     })
+
+    // 如果 spawn 了新进程，等待服务就绪
+    if (response.spawned) {
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 2000))
+        try {
+          const health = await $fetch<{ status: string }>('/api/asr/service-health')
+          if (health.status === 'ok') break
+        } catch {
+          // health 请求失败，继续等待
+        }
+      }
+    }
+
     asrIsRunning.value = true
     await fetchStatus()
     asrPanelRef.value?.handleStartSuccess()

@@ -1,30 +1,28 @@
 import { startASR, getASRStatus } from '../../../utils/asr-bridge'
+import { startASRProcess } from '../../../utils/asr-process'
 
-const VALID_PROVIDERS = ['whisper', 'funasr']
-const VALID_SOURCES = ['mic', 'stream'] as const
+const VALID_SOURCES = ['mic', 'file', 'stream'] as const
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))
   const { provider, model, source, streamUrl } = body
 
-  if (!VALID_PROVIDERS.includes(provider)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: `Invalid provider. Must be one of: ${VALID_PROVIDERS.join(', ')}`
-    })
-  }
-
-  if (!VALID_SOURCES.includes(source)) {
+  if (source && !VALID_SOURCES.includes(source)) {
     throw createError({
       statusCode: 400,
       statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
     })
   }
 
-  if (source === 'stream' && !streamUrl) {
+  // spawn ASR 进程（如果未运行）
+  let spawned = false
+  try {
+    const result = await startASRProcess()
+    spawned = result !== null
+  } catch (error: any) {
     throw createError({
-      statusCode: 400,
-      statusMessage: 'streamUrl is required when source is "stream"'
+      statusCode: 500,
+      statusMessage: error.message || 'ASR 进程启动失败'
     })
   }
 
@@ -37,16 +35,16 @@ export default defineEventHandler(async (event) => {
   }
 
   const url = process.env.ASR_WS_URL || 'ws://localhost:9900'
-  const success = startASR(
-    { url, provider, model: model || '' },
-    source,
+  startASR(
+    { url, provider: provider || 'gguf', model: model || '' },
+    (source || 'mic') as 'mic' | 'stream',
     streamUrl
   )
 
   return {
-    success,
-    message: success ? 'ASR started' : 'Failed to start ASR',
+    success: true,
+    spawned,
     provider,
-    source
+    source: source || 'mic'
   }
 })
