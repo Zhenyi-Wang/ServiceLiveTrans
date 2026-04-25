@@ -24,7 +24,7 @@
 在文件顶部 imports 区域添加 `http`：
 
 ```python
-import http.server
+import http
 ```
 
 在 `handle_connection` 函数之前添加两个函数：
@@ -187,7 +187,7 @@ export async function startASRProcess(): Promise<{ pid: number } | null> {
   }
 
   const pythonPath = detectPythonPath()
-  const projectRoot = path.resolve(process.cwd(), '..')
+  const projectRoot = process.cwd()
 
   console.log(`[ASR Process] 启动: ${pythonPath} asr/server.py`)
   childProcess = spawn(pythonPath, ['asr/server.py'], {
@@ -311,9 +311,18 @@ git commit -m "feat: 添加 Nitro shutdown hook 清理 ASR 进程"
 import { startASR, getASRStatus } from '../../../utils/asr-bridge'
 import { startASRProcess } from '../../../utils/asr-process'
 
+const VALID_SOURCES = ['mic', 'file', 'stream'] as const
+
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))
   const { provider, model, source, streamUrl } = body
+
+  if (source && !VALID_SOURCES.includes(source)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
+    })
+  }
 
   // spawn ASR 进程（如果未运行）
   let spawned = false
@@ -336,9 +345,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const url = process.env.ASR_WS_URL || 'ws://localhost:9900'
+  // source 参数传给 startASR 但 bridge 内部不使用它，只设置 transcriptionState.source = 'asr'
   startASR(
     { url, provider: provider || 'gguf', model: model || '' },
-    source || 'mic',
+    (source || 'mic') as 'mic' | 'stream',
     streamUrl
   )
 
@@ -432,7 +442,10 @@ const serviceHealth = ref<{
   process?: { pid: number | null; selfStarted: boolean }
 }>({ status: 'offline' })
 
+const isStarting = ref(false)
+
 const serviceStatus = computed(() => {
+  if (isStarting.value) return 'starting'
   if (props.isRunning) return 'ready'
   return serviceHealth.value.status === 'ok' ? 'ready' : 'offline'
 })
@@ -571,11 +584,45 @@ async function handleStart() {
 }
 ```
 
-- [ ] **Step 2: 修改 admin.vue — 适配异步 start 响应**
+- [ ] **Step 2: 修改 admin.vue — spawn 后等待服务就绪**
 
-在 `pages/admin.vue` 的 `handleASRStart` 中，适配新的 API 响应（包含 `spawned` 字段），但逻辑不需要变化（仍然是 start → set running → handleStartSuccess）。
+修改 `pages/admin.vue` 的 `handleASRStart` 函数。如果 API 返回 `spawned: true`，需要轮询 health 等待服务就绪后再设 running。
 
-当前代码已经能处理新响应格式（它只用 `$fetch` 发 POST，不依赖响应字段），所以 `admin.vue` **不需要修改**。
+替换 `handleASRStart` 函数：
+
+```typescript
+const handleASRStart = async (config: { provider: string; model: string; source: string; streamUrl?: string }) => {
+  asrIsLoading.value = true
+  try {
+    const response = await $fetch<{ success: boolean; spawned?: boolean }>('/api/asr/start', {
+      method: 'POST',
+      body: config
+    })
+
+    // 如果 spawn 了新进程，等待服务就绪
+    if (response.spawned) {
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 2000))
+        try {
+          const health = await $fetch<{ status: string }>('/api/asr/service-health')
+          if (health.status === 'ok') break
+        } catch {
+          // health 请求失败，继续等待
+        }
+      }
+    }
+
+    asrIsRunning.value = true
+    await fetchStatus()
+    asrPanelRef.value?.handleStartSuccess()
+  } catch (error: any) {
+    const msg = error?.data?.message || error.message || '启动失败'
+    console.error('Failed to start ASR:', msg)
+  } finally {
+    asrIsLoading.value = false
+  }
+}
+```
 
 - [ ] **Step 3: Playwright 测试 — 验证服务状态显示**
 
@@ -591,7 +638,7 @@ async function handleStart() {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add components/admin/ASRControlPanel.vue
+git add components/admin/ASRControlPanel.vue pages/admin.vue
 git commit -m "feat: ASR 面板显示服务状态和动态 provider 列表"
 ```
 
