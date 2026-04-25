@@ -26,8 +26,9 @@
 
 **互斥规则**：ASRControlPanel 和 LiveTransControl 共享同一个全局 ASR Bridge 单例。同时启动两者会导致 provider 冲突（LiveTransManager 硬编码 `provider: 'gguf'`，而 ASRControlPanel 允许选择 `whisper`/`funasr`）。实施时需要确保：
 
-1. 启动任一面板时，如果另一面板正在运行，先停止对方
-2. 前端通过 `/api/asr/status` 和 `/api/live/status` 检测冲突，在 UI 上给出提示
+1. 前端启动 ASRControlPanel 前检查 `/api/live/status`，如果 `state !== 'idle'` 则提示用户先停止直播转录
+2. 前端启动 LiveTransControl 前检查 `/api/asr/status`，如果 `isActive === true` 则提示用户先停止 ASR
+3. 不依赖 `transcriptionState.source` 来区分面板来源（因为两个面板都会设为 `'asr'`），而是分别检查各自的 status API
 3. ASRControlPanel 的 stream 选项与 LiveTransControl 功能重叠，**移除 ASRControlPanel 的 stream 选项**，ASRControlPanel 仅保留 mic 和 file 两种源。直播流场景统一由 LiveTransControl 管理。
 
 ## 数据流

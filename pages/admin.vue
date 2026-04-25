@@ -16,6 +16,12 @@ const status = ref<{
 // ASR 相关状态
 const asrIsRunning = ref(false)
 const asrIsLoading = ref(false)
+const asrPanelRef = ref<InstanceType<typeof AdminASRControlPanel> | null>(null)
+
+// admin 页面 WS 连接（用于发送音频数据）
+const { send: wsSend } = useWebSocket({
+  onMessage: () => {}
+})
 
 // 直播转录相关状态
 const liveIsRunning = ref(false)
@@ -168,8 +174,10 @@ const handleASRStart = async (config: { provider: string; model: string; source:
     })
     asrIsRunning.value = true
     await fetchStatus()
-  } catch (error) {
-    console.error('Failed to start ASR:', error)
+    asrPanelRef.value?.handleStartSuccess()
+  } catch (error: any) {
+    const msg = error?.data?.message || error.message || '启动失败'
+    console.error('Failed to start ASR:', msg)
   } finally {
     asrIsLoading.value = false
   }
@@ -178,6 +186,7 @@ const handleASRStart = async (config: { provider: string; model: string; source:
 const handleASRStop = async () => {
   asrIsLoading.value = true
   try {
+    asrPanelRef.value?.stopCapture()
     await $fetch('/api/asr/stop', { method: 'POST' })
     asrIsRunning.value = false
     await fetchStatus()
@@ -321,8 +330,10 @@ onUnmounted(() => {
 
         <!-- ASR 控制面板 -->
         <AdminASRControlPanel
+          ref="asrPanelRef"
           :is-running="asrIsRunning"
           :is-loading="asrIsLoading"
+          :ws-send="wsSend"
           @start="handleASRStart"
           @stop="handleASRStop"
         />

@@ -3,7 +3,15 @@ class PCMProcessor extends AudioWorkletProcessor {
     super()
     this._buffer = new Float32Array()
     this._targetSampleRate = 16000
-    this._outputChunkSize = 1600 // 100ms at 16kHz
+    this._outputChunkSize = 1600
+
+    this.port.onmessage = (event) => {
+      if (event.data.type === 'config') {
+        this._targetSampleRate = event.data.targetSampleRate
+        this._outputChunkSize = Math.floor(this._targetSampleRate * event.data.chunkDurationMs / 1000)
+        this._buffer = new Float32Array()
+      }
+    }
   }
 
   process(inputs) {
