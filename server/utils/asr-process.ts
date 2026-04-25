@@ -34,17 +34,20 @@ function detectPythonPath(): string {
     path.join(homedir(), 'anaconda3'),
     path.join(homedir(), 'miniconda'),
   ]
+  const envNames = ['funasr', 'trans']
   for (const prefix of condaPrefixes) {
-    const candidate = path.join(prefix, 'envs', 'trans', 'bin', 'python')
-    if (existsSync(candidate)) {
-      cachedPythonPath = candidate
-      console.log(`[ASR Process] 检测到 conda Python: ${cachedPythonPath}`)
-      return cachedPythonPath!
+    for (const envName of envNames) {
+      const candidate = path.join(prefix, 'envs', envName, 'bin', 'python')
+      if (existsSync(candidate)) {
+        cachedPythonPath = candidate
+        console.log(`[ASR Process] 检测到 conda Python: ${cachedPythonPath}`)
+        return cachedPythonPath!
+      }
     }
   }
 
   try {
-    const result = execSync('conda run -n trans which python', {
+    const result = execSync('conda run -n funasr which python', {
       encoding: 'utf-8',
       timeout: 10000,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -58,7 +61,7 @@ function detectPythonPath(): string {
     // conda run 失败
   }
 
-  throw new Error('未找到 Python 环境。请设置 ASR_PYTHON_PATH 环境变量或安装 conda trans 环境。')
+  throw new Error('未找到 Python 环境。请设置 ASR_PYTHON_PATH 环境变量或安装 conda funasr/trans 环境。')
 }
 
 function isPortInUse(port: number): Promise<boolean> {
@@ -87,11 +90,19 @@ export async function startASRProcess(): Promise<{ pid: number } | null> {
   console.log(`[ASR Process] 启动: ${pythonPath} asr/server.py`)
   childProcess = spawn(pythonPath, ['asr/server.py'], {
     cwd: projectRoot,
-    stdio: ['ignore', 'inherit', 'inherit'],
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONPATH: projectRoot },
   })
 
   selfStarted = true
+
+  childProcess.stdout?.on('data', (data: Buffer) => {
+    console.log(`[ASR Process] ${data.toString().trimEnd()}`)
+  })
+
+  childProcess.stderr?.on('data', (data: Buffer) => {
+    console.error(`[ASR Process] ${data.toString().trimEnd()}`)
+  })
 
   childProcess.on('exit', (code, signal) => {
     console.log(`[ASR Process] 进程退出: code=${code}, signal=${signal}`)
