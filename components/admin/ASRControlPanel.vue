@@ -38,7 +38,7 @@ const serviceHealth = ref<{
   status: 'ok' | 'offline'
   available_providers?: string[]
   process?: { pid: number | null; selfStarted: boolean }
-}>({ status: 'offline' })
+}>({ status: 'offline', process: { pid: null, selfStarted: false } })
 
 const isStarting = ref(false)
 
@@ -74,15 +74,23 @@ async function fetchServiceHealth() {
       process: data.process,
     }
   } catch {
-    serviceHealth.value = { status: 'offline' }
+    serviceHealth.value = { status: 'offline', process: { pid: null, selfStarted: false } }
   }
 }
 
 const { pause: pauseHealthPoll, resume: resumeHealthPoll } = useIntervalFn(
   fetchServiceHealth,
   3000,
-  { immediate: true }
+  { immediate: false }
 )
+
+// 首次 fetch 在 onMounted 中调用，确保只在客户端执行
+function startHealthPoll() {
+  if (import.meta.client) {
+    fetchServiceHealth()
+    resumeHealthPoll()
+  }
+}
 const advancedSettings = ref({
   targetSampleRate: 16000,
   chunkDurationMs: 100,
@@ -255,7 +263,7 @@ watch(() => filePlayer.waveformPeaks.value, (peaks) => {
 })
 
 onMounted(() => {
-  resumeHealthPoll()
+  startHealthPoll()
   enumerateDevices()
   navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange)
   nextTick(() => {
@@ -287,16 +295,18 @@ onUnmounted(() => {
 
     <div class="panel-content">
       <!-- Service Status -->
-      <div class="form-row">
-        <label class="form-label">SERVICE</label>
-        <div class="service-status" :class="serviceStatus">
-          <span class="service-dot" />
-          <span class="service-text">{{ serviceStatusText }}</span>
-          <span v-if="serviceHealth.value.process?.selfStarted" class="service-pid">
-            PID {{ serviceHealth.value.process.pid }}
-          </span>
+      <ClientOnly>
+        <div class="form-row">
+          <label class="form-label">SERVICE</label>
+          <div class="service-status" :class="serviceStatus">
+            <span class="service-dot" />
+            <span class="service-text">{{ serviceStatusText }}</span>
+            <span v-if="serviceHealth.process?.selfStarted" class="service-pid">
+              PID {{ serviceHealth.process?.pid }}
+            </span>
+          </div>
         </div>
-      </div>
+      </ClientOnly>
 
       <!-- Provider -->
       <div class="form-row">
