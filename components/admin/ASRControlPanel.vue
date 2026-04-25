@@ -6,11 +6,13 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  start: [config: { provider: string; model: string; source: string }]
+  start: [config: { provider: string; model: string; source: string; streamUrl?: string }]
   stop: []
 }>()
 
-const source = ref<'mic' | 'file'>('mic')
+const source = ref<'mic' | 'file' | 'stream'>('mic')
+const DEFAULT_STREAM_URL = 'http://mini:8080/live/livestream.flv'
+const streamUrl = ref('')
 const provider = ref('gguf')
 
 const devices = ref<MediaDeviceInfo[]>([])
@@ -137,10 +139,6 @@ function handleFileSelect(event: Event) {
   }
 }
 
-function triggerFileInput() {
-  fileInput.value?.click()
-}
-
 function handleSeek(event: Event) {
   const input = event.target as HTMLInputElement
   const time = parseFloat(input.value)
@@ -181,16 +179,18 @@ async function handleStart() {
   emit('start', {
     provider: provider.value,
     model: '',
-    source: source.value
+    source: source.value,
+    ...(source.value === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {})
   })
 }
 
 async function handleStartSuccess() {
   if (source.value === 'mic') {
     await startMicCapture()
-  } else {
+  } else if (source.value === 'file') {
     startFilePlayback()
   }
+  // stream: 音频由后端 ffmpeg 处理，前端无需操作
 }
 
 async function startMicCapture() {
@@ -348,6 +348,12 @@ onUnmounted(() => {
             :disabled="isRunning"
             @click="source = 'file'"
           >File</button>
+          <button
+            class="source-btn"
+            :class="{ active: source === 'stream' }"
+            :disabled="isRunning"
+            @click="source = 'stream'"
+          >Stream</button>
         </div>
       </div>
 
@@ -377,14 +383,14 @@ onUnmounted(() => {
       <div v-if="source === 'file'" class="form-row">
         <label class="form-label">AUDIO FILE</label>
         <div class="file-select-row">
-          <button class="file-select-btn" :disabled="isRunning" @click="triggerFileInput">
+          <input ref="fileInput" type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.wma,.aac,.webm" class="file-input-hidden" @change="handleFileSelect" />
+          <button type="button" class="file-select-btn" :class="{ disabled: isRunning }" @click="fileInput?.click()">
             {{ filePlayer.fileInfo.value ? filePlayer.fileInfo.value.name : '选择文件...' }}
           </button>
           <span v-if="filePlayer.fileInfo.value" class="file-duration">
             {{ formatTime(filePlayer.fileInfo.value.duration) }}
           </span>
         </div>
-        <input ref="fileInput" type="file" accept="audio/*" class="hidden" @change="handleFileSelect" />
       </div>
 
       <!-- File: Progress Bar -->
@@ -425,6 +431,18 @@ onUnmounted(() => {
         <div class="waveform-container" @click="handleWaveformClick">
           <canvas ref="fileCanvasRef" class="waveform-canvas" />
         </div>
+      </div>
+
+      <!-- Stream: URL Input -->
+      <div v-if="source === 'stream'" class="form-row">
+        <label class="form-label">STREAM URL</label>
+        <input
+          v-model="streamUrl"
+          type="text"
+          class="form-input"
+          placeholder="默认"
+          :disabled="isRunning"
+        />
       </div>
 
       <!-- Status Message -->
@@ -596,9 +614,15 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 
-.provider-grid, .source-grid {
+.provider-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
 }
 
@@ -679,13 +703,14 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-.file-select-btn:hover:not(:disabled) {
+.file-select-btn:hover:not(.disabled) {
   border-color: rgba(56, 189, 248, 0.4);
 }
 
-.file-select-btn:disabled {
+.file-select-btn.disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .file-duration {
@@ -695,8 +720,16 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.hidden {
-  display: none;
+.file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .progress-time {
