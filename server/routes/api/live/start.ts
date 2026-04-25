@@ -23,8 +23,11 @@ export default defineEventHandler(async (event) => {
   try {
     const result = await startASRProcess()
     spawned = result !== null
-  } catch {
-    // 进程已运行
+  } catch (error: any) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: error.message || 'ASR 进程启动失败'
+    })
   }
 
   const success = await transcriptionManager.start({

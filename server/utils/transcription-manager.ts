@@ -323,6 +323,7 @@ export const transcriptionManager = {
 
     asrReady = false
     pendingAudio = []
+    partialVersion = 0
     onReadyCallback = null
     bridgeConfig = null
     startTime = null
