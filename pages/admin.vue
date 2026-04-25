@@ -23,10 +23,6 @@ const { send: wsSend } = useWebSocket({
   onMessage: () => {}
 })
 
-// 直播转录相关状态
-const liveIsRunning = ref(false)
-const liveIsLoading = ref(false)
-
 // WS 测试相关
 const wsMessageType = ref<string>('current')
 const wsSendLoading = ref(false)
@@ -211,34 +207,6 @@ const handleASRStop = async () => {
   }
 }
 
-// 直播转录控制
-const handleLiveStart = async () => {
-  liveIsLoading.value = true
-  try {
-    await $fetch('/api/live/start', {
-      method: 'POST',
-      body: { sourceType: 'flv' }
-    })
-    liveIsRunning.value = true
-  } catch (error) {
-    console.error('Failed to start live transcription:', error)
-  } finally {
-    liveIsLoading.value = false
-  }
-}
-
-const handleLiveStop = async () => {
-  liveIsLoading.value = true
-  try {
-    await $fetch('/api/live/stop', { method: 'POST' })
-    liveIsRunning.value = false
-  } catch (error) {
-    console.error('Failed to stop live transcription:', error)
-  } finally {
-    liveIsLoading.value = false
-  }
-}
-
 // 当前延迟值
 const currentDelay = computed(() => status.value?.config?.optimizationDelay ?? 2000)
 
@@ -350,14 +318,6 @@ onUnmounted(() => {
           :ws-send="wsSend"
           @start="handleASRStart"
           @stop="handleASRStop"
-        />
-
-        <!-- 直播转录控制 -->
-        <AdminLiveTransControl
-          :is-running="liveIsRunning"
-          :is-loading="liveIsLoading"
-          @start="handleLiveStart"
-          @stop="handleLiveStop"
         />
 
         <!-- 模型状态面板 -->

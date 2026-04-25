@@ -165,17 +165,6 @@ function formatTime(seconds: number): string {
 async function handleStart() {
   statusMessage.value = ''
 
-  // 互斥检查：检查 LiveTrans 是否在运行
-  try {
-    const liveStatus = await $fetch<{ state: string }>('/api/live/status')
-    if (liveStatus.state !== 'idle') {
-      setStatus('请先停止直播转录', 'error')
-      return
-    }
-  } catch {
-    // live status API 不可用时忽略
-  }
-
   emit('start', {
     provider: provider.value,
     model: '',
