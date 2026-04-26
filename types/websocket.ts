@@ -68,6 +68,7 @@ export interface ConfirmedSubtitle {
  */
 export interface TranscriptionStatusData {
   state: 'idle' | 'starting' | 'running' | 'stopping' | 'error'
+  source: 'mic' | 'stream' | null
   audio: { active: boolean; label: string; detail?: string }
   recognition: { active: boolean; detail?: string }
   error?: string
@@ -92,7 +93,7 @@ export interface ConnectionCountData {
  * 音频源启动指令数据
  */
 export interface AudioSourceCommandData {
-  source: 'mic' | 'file' | 'stream'
+  source: 'mic' | 'stream'
 }
 
 /**

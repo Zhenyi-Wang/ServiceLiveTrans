@@ -80,7 +80,7 @@ export function useTranscription() {
       }
       case 'transcription-progress': {
         const data = message.data as TranscriptionProgressData
-        currentStep.value = data.step
+        currentStep.value = data.step || null
         break
       }
       case 'connection-count': {
@@ -114,6 +114,44 @@ export function useTranscription() {
     }
   }
 
+  async function startAudioOnly(config: { source: string; streamUrl?: string }) {
+    try {
+      await $fetch('/api/transcription/audio-start', {
+        method: 'POST',
+        body: config
+      })
+    } catch (e: any) {
+      error.value = e?.data?.message || e.message || '启动音频源失败'
+    }
+  }
+
+  async function stopAudioOnly() {
+    try {
+      await $fetch('/api/transcription/audio-stop', { method: 'POST' })
+    } catch (e: any) {
+      console.error('停止音频源失败:', e)
+    }
+  }
+
+  async function startRecognitionOnly(config: { provider?: string; overlapSec?: number; memoryChunks?: number }) {
+    try {
+      await $fetch('/api/transcription/recognition-start', {
+        method: 'POST',
+        body: config
+      })
+    } catch (e: any) {
+      error.value = e?.data?.message || e.message || '启动识别服务失败'
+    }
+  }
+
+  async function stopRecognitionOnly() {
+    try {
+      await $fetch('/api/transcription/recognition-stop', { method: 'POST' })
+    } catch (e: any) {
+      console.error('停止识别服务失败:', e)
+    }
+  }
+
   async function switchSource(config: { source: string; streamUrl?: string }) {
     try {
       await $fetch('/api/transcription/switch-source', {
@@ -141,6 +179,10 @@ export function useTranscription() {
     handleWSMessage,
     startTranscription,
     stopTranscription,
+    startAudioOnly,
+    stopAudioOnly,
+    startRecognitionOnly,
+    stopRecognitionOnly,
     switchSource
   }
 }
