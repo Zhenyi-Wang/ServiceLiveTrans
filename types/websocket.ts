@@ -1,10 +1,4 @@
 /**
- * 转录状态
- * @deprecated 使用 TranscriptionStatusData.state 替代
- */
-export type TranscriptionStateType = 'idle' | 'starting' | 'running' | 'error' | 'reconnecting'
-
-/**
  * WebSocket 消息类型
  */
 export type WSMessageType =
@@ -12,7 +6,6 @@ export type WSMessageType =
   | 'confirmed'
   | 'current'
   | 'clear'
-  | 'status'  // @deprecated 由 'transcription-status' 替代，Task 10 删除
   | 'ai-processed'
   | 'transcription-status'
   | 'transcription-progress'
@@ -51,17 +44,6 @@ export interface WSCurrentData {
 }
 
 /**
- * 转录状态变化通知
- * @deprecated 使用 TranscriptionStatusData 替代
- */
-export interface WSStatusData {
-  state: TranscriptionStateType
-  source?: string | null
-  error?: string
-  reconnectCount?: number
-}
-
-/**
  * AI 后处理完成通知
  */
 export interface WSAIProcessedData {
@@ -82,7 +64,7 @@ export interface ConfirmedSubtitle {
 }
 
 /**
- * 转录状态数据（新统一格式）
+ * 转录状态数据（统一格式）
  */
 export interface TranscriptionStatusData {
   state: 'idle' | 'starting' | 'running' | 'stopping' | 'error'
@@ -127,7 +109,6 @@ export interface WSMessage {
     | WSInitData
     | WSConfirmedData
     | WSCurrentData
-    | WSStatusData
     | WSAIProcessedData
     | TranscriptionStatusData
     | TranscriptionProgressData
