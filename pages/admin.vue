@@ -226,7 +226,7 @@ onUnmounted(() => {
         <div class="header-right">
           <div class="time-display">
             <span class="time-label">系统时间</span>
-            <span class="time-value">{{ formattedTime }}</span>
+            <span class="time-value"><ClientOnly>{{ formattedTime }}</ClientOnly></span>
           </div>
 
           <NuxtLink to="/" class="nav-link">
