@@ -79,9 +79,18 @@ function isPortInUse(port: number): Promise<boolean> {
 export async function startASRProcess(): Promise<{ pid: number } | null> {
   const portUsed = await isPortInUse(ASR_PORT)
   if (portUsed) {
-    console.log(`[ASR Process] 端口 ${ASR_PORT} 已被占用，跳过启动`)
-    selfStarted = false
-    return null
+    console.log(`[ASR Process] 端口 ${ASR_PORT} 被占用，杀掉残留进程`)
+    try {
+      const result = execSync(`lsof -ti :${ASR_PORT}`, { encoding: 'utf-8', timeout: 5000 }).trim()
+      if (result) {
+        for (const pid of result.split('\n')) {
+          process.kill(Number(pid.trim()), 'SIGTERM')
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+    } catch {
+      // lsof 失败，忽略
+    }
   }
 
   const pythonPath = detectPythonPath()
@@ -117,13 +126,30 @@ export async function startASRProcess(): Promise<{ pid: number } | null> {
 }
 
 export function stopASRProcess(): void {
-  if (!selfStarted || !childProcess) {
+  // 优先杀自己启动的子进程
+  if (selfStarted && childProcess) {
+    console.log(`[ASR Process] 停止子进程 PID: ${childProcess.pid}`)
+    childProcess.kill('SIGTERM')
+    childProcess = null
+    selfStarted = false
     return
   }
 
-  console.log(`[ASR Process] 停止进程 PID: ${childProcess.pid}`)
-  childProcess.kill('SIGTERM')
-  childProcess = null
+  // 子进程已退出但端口可能被占用（防御性清理）
+  try {
+    const result = execSync(`lsof -ti :${ASR_PORT}`, { encoding: 'utf-8', timeout: 5000 }).trim()
+    if (result) {
+      for (const pid of result.split('\n')) {
+        const p = Number(pid.trim())
+        if (p !== process.pid) {
+          process.kill(p, 'SIGTERM')
+        }
+      }
+      console.log(`[ASR Process] 已清理端口 ${ASR_PORT} 上的残留进程`)
+    }
+  } catch {
+    // 端口空闲或 lsof 失败
+  }
   selfStarted = false
 }
 
