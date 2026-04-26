@@ -26,7 +26,11 @@ export function useWaveformRenderer(
     currentAnalyser = analyserNode
 
     canvas.height = height
-    const width = canvas.clientWidth || 300
+    let width = canvas.clientWidth
+    if (width === 0) {
+      requestAnimationFrame(() => drawRealtimeWaveform(analyserNode))
+      return
+    }
     canvas.width = width
 
     const bufferLength = analyserNode?.frequencyBinCount ?? 1024
