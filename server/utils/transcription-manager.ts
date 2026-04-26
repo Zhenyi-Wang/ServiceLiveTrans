@@ -15,6 +15,8 @@ interface StartConfig {
   model: string
   source: SourceType
   streamUrl?: string
+  overlapSec?: number
+  memoryChunks?: number
 }
 
 interface TranscriptionStatus {
@@ -249,7 +251,13 @@ export const transcriptionManager = {
 
     // 连接 ASR Bridge
     const asrUrl = process.env.ASR_WS_URL || 'ws://localhost:9900'
-    bridgeConfig = { url: asrUrl, provider: config.provider, model: config.model }
+    bridgeConfig = {
+      url: asrUrl,
+      provider: config.provider,
+      model: config.model,
+      ...(config.overlapSec !== undefined ? { overlap_sec: config.overlapSec } : {}),
+      ...(config.memoryChunks !== undefined ? { memory_chunks: config.memoryChunks } : {}),
+    }
 
     transcriptionState.isActive = true
     transcriptionState.source = 'asr'
