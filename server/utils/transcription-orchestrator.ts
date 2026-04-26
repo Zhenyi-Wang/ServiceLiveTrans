@@ -95,10 +95,14 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
   let cancelled = false
   let checkInterval: ReturnType<typeof setInterval> | null = null
   let readyInterval: ReturnType<typeof setInterval> | null = null
+  let modelTimeout: ReturnType<typeof setTimeout> | null = null
+  let bridgeTimeout: ReturnType<typeof setTimeout> | null = null
   const cleanup = () => {
     cancelled = true
     if (checkInterval) { clearInterval(checkInterval); checkInterval = null }
     if (readyInterval) { clearInterval(readyInterval); readyInterval = null }
+    if (modelTimeout) { clearTimeout(modelTimeout); modelTimeout = null }
+    if (bridgeTimeout) { clearTimeout(bridgeTimeout); bridgeTimeout = null }
   }
 
   return new Promise<void>((resolve, reject) => {
@@ -121,8 +125,7 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
         readyInterval = setInterval(() => {
           if (cancelled) return
           if (transcriptionManager.isASRReady()) {
-            clearInterval(readyInterval!)
-            readyInterval = null
+            cleanup()
             if (!completedSteps.has('model')) {
               broadcastProgress('model-ready')
               completedSteps.add('model')
@@ -131,7 +134,7 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
           }
         }, 500)
 
-        setTimeout(() => {
+        modelTimeout = setTimeout(() => {
           if (cancelled) return
           cleanup()
           reject(new Error('模型加载超时'))
@@ -139,7 +142,7 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
       }
     }, 500)
 
-    setTimeout(() => {
+    bridgeTimeout = setTimeout(() => {
       if (cancelled) return
       cleanup()
       reject(new Error('Bridge 连接超时'))
@@ -321,7 +324,7 @@ export const orchestrator = {
         completedSteps.delete('bridge')
         completedSteps.delete('model')
         broadcastProgress('service-starting')
-        await launchService()
+        await withRetry(launchService, '重启服务')
         await waitForServiceHealthy()
         await withRetry(() => connectAndLoadModel(currentConfig!), '重启后连接 Bridge')
         if (currentConfig) {

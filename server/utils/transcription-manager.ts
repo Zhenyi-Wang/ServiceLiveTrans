@@ -122,14 +122,14 @@ function _onError(error: Error): void {
 
 // === 状态广播 ===
 
-export function broadcastStatus(): void {
+export function getStatusData(): TranscriptionStatusData {
   const sourceLabel = currentSource === 'mic' ? '麦克风' : currentSource === 'file' ? '文件' : currentSource === 'stream' ? '直播流' : ''
   const sourceStatus = audioSource?.getStatus()
   const audioDetail = sourceStatus
     ? (sourceStatus.state === 'running' ? '运行中' : sourceStatus.state === 'connecting' ? '连接中' : sourceStatus.state === 'error' ? '错误' : undefined)
     : (managerState === 'running' && currentSource ? '运行中' : undefined)
 
-  const data: TranscriptionStatusData = {
+  return {
     state: managerState,
     audio: {
       active: currentSource !== null,
@@ -142,7 +142,10 @@ export function broadcastStatus(): void {
     },
     uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
   }
-  broadcast({ type: 'transcription-status', data })
+}
+
+export function broadcastStatus(): void {
+  broadcast({ type: 'transcription-status', data: getStatusData() })
 }
 
 // === 公开 API（供 Orchestrator 调用） ===
@@ -204,7 +207,6 @@ export const transcriptionManager = {
     } catch (e) {
       bridgeStatus = 'disconnected'
       console.error('[TranscriptionManager] 创建连接失败:', e)
-      scheduleBridgeReconnect()
     }
   },
 

@@ -8,6 +8,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'status-change': [state: string]
+  'counts-update': [connectionCount: number, subtitleCount: number]
 }>()
 
 // ─── Composables ───────────────────────────────────────────
@@ -392,10 +393,8 @@ watch(source, (val) => {
   statusMessage.value = ''
   stopMicCapture()
   micWaveform.stopAnimation()
-  nextTick(async () => {
-    if (val === 'mic') {
-      await startMicCapture()
-    } else if (val === 'file') {
+  nextTick(() => {
+    if (val === 'file') {
       micWaveform.drawRealtimeWaveform(null)
       if (filePlayer.waveformPeaks.value) {
         fileWaveform.drawStaticWaveform(filePlayer.waveformPeaks.value, 0, fileVolume.value)
@@ -425,6 +424,11 @@ watch(fileVolume, () => {
 watch(transcription.state, (s) => {
   emit('status-change', s)
 })
+
+// 连接数和字幕数同步到父组件
+watch([transcription.connectionCount, transcription.subtitleCount], ([cc, sc]) => {
+  emit('counts-update', cc, sc)
+}, { immediate: true })
 
 // ─── Lifecycle ─────────────────────────────────────────────
 onMounted(() => {
@@ -659,11 +663,11 @@ onUnmounted(() => {
       <div class="info-row">
         <div class="info-item">
           <span class="info-label">连接</span>
-          <span class="info-value">{{ props.connectionCount }}</span>
+          <span class="info-value">{{ transcription.connectionCount.value }}</span>
         </div>
         <div class="info-item">
           <span class="info-label">字幕</span>
-          <span class="info-value">{{ props.subtitleCount }}</span>
+          <span class="info-value">{{ transcription.subtitleCount.value }}</span>
         </div>
       </div>
 

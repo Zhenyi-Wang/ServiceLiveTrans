@@ -22,6 +22,11 @@ function handleTranscriptionStatusChange(state: string) {
   transcriptionState.value = state
 }
 
+function handleCountsUpdate(connectionCount: number, subtitleCount: number) {
+  transcriptionConnectionCount.value = connectionCount
+  transcriptionSubtitleCount.value = subtitleCount
+}
+
 // WS 测试相关
 const wsMessageType = ref<string>('current')
 const wsSendLoading = ref(false)
@@ -260,6 +265,7 @@ onUnmounted(() => {
           :connection-count="transcriptionConnectionCount"
           :subtitle-count="transcriptionSubtitleCount"
           @status-change="handleTranscriptionStatusChange"
+          @counts-update="handleCountsUpdate"
         />
 
         <!-- 开发测试工具（折叠） -->
