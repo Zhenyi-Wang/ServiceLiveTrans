@@ -1,4 +1,4 @@
-import type { WSMessage, TranscriptionStatusData, TranscriptionProgressData } from '~/types/websocket'
+import type { WSMessage, WSInitData, TranscriptionStatusData, TranscriptionProgressData } from '~/types/websocket'
 
 interface TranscriptionAudioState {
   active: boolean
@@ -40,6 +40,24 @@ export function useTranscription() {
 
   function handleWSMessage(message: WSMessage) {
     switch (message.type) {
+      case 'init': {
+        const data = message.data as WSInitData
+        if (data.transcriptionStatus) {
+          const ts = data.transcriptionStatus
+          state.value = ts.state
+          audio.value = ts.audio
+          recognition.value = ts.recognition
+          error.value = ts.error
+          if (ts.uptime > 0) {
+            uptime.value = ts.uptime
+            if (ts.state === 'running') startUptimeCounter()
+          }
+        }
+        if (data.connectionCount !== undefined) {
+          connectionCount.value = data.connectionCount
+        }
+        break
+      }
       case 'transcription-status': {
         const data = message.data as TranscriptionStatusData
         state.value = data.state
