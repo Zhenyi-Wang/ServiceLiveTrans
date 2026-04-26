@@ -24,25 +24,25 @@ const delayRandomRange = computed(() => props.status?.config?.delayRandomRange ?
 // 状态指标
 const metrics = computed(() => [
   {
-    label: 'SIMULATION',
-    value: isRunning.value ? 'ACTIVE' : 'IDLE',
+    label: '模拟',
+    value: isRunning.value ? '运行中' : '空闲',
     type: 'status' as const,
     active: isRunning.value
   },
   {
-    label: 'CONNECTIONS',
+    label: '连接数',
     value: connectionCount.value.toString(),
     type: 'number' as const,
     icon: 'users'
   },
   {
-    label: 'SUBTITLES',
+    label: '字幕数',
     value: subtitleCount.value.toString(),
     type: 'number' as const,
     icon: 'text'
   },
   {
-    label: 'LATENCY',
+    label: '延迟',
     value: `${optimizationDelay.value}ms`,
     subValue: `±${delayRandomRange.value}ms`,
     type: 'timing' as const,
@@ -60,8 +60,8 @@ const metrics = computed(() => [
         </svg>
       </div>
       <div class="panel-title-group">
-        <span class="panel-title">SYSTEM STATUS</span>
-        <span class="panel-subtitle">Real-time Metrics</span>
+        <span class="panel-title">系统状态</span>
+        <span class="panel-subtitle">实时指标</span>
       </div>
     </div>
 
@@ -99,7 +99,7 @@ const metrics = computed(() => [
     <!-- Activity visualization -->
     <div class="activity-section">
       <div class="activity-header">
-        <span class="activity-label">ACTIVITY FEED</span>
+        <span class="activity-label">活动</span>
         <div class="activity-pulse" :class="{ active: isRunning }">
           <span class="pulse-dot"></span>
         </div>
@@ -228,8 +228,8 @@ const metrics = computed(() => [
 }
 
 .metric-label {
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
   color: rgba(148, 163, 184, 0.6);
 }
 

@@ -64,22 +64,22 @@ const formattedDelay = computed(() => {
         </svg>
       </div>
       <div class="panel-title-group">
-        <span class="panel-title">SIMULATION CONTROL</span>
-        <span class="panel-subtitle">Broadcast Engine</span>
+        <span class="panel-title">模拟控制</span>
+        <span class="panel-subtitle">广播引擎</span>
       </div>
       <div class="status-badge" :class="{ active: isRunning }">
         <span class="badge-dot"></span>
-        <span class="badge-text">{{ isRunning ? 'ON AIR' : 'STANDBY' }}</span>
+        <span class="badge-text">{{ isRunning ? '广播中' : '待机' }}</span>
       </div>
     </div>
 
     <!-- 延迟配置 -->
     <div class="delay-section">
       <div class="delay-header">
-        <span class="delay-label">TRANSLATION DELAY</span>
+        <span class="delay-label">翻译延迟</span>
         <div class="delay-value-display">
           <span class="delay-value">{{ formattedDelay }}</span>
-          <span class="delay-unit">±1s random</span>
+          <span class="delay-unit">±1s 随机</span>
         </div>
       </div>
 
@@ -125,7 +125,7 @@ const formattedDelay = computed(() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
             <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
           </svg>
-          <span class="btn-text">START BROADCAST</span>
+          <span class="btn-text">开始广播</span>
         </div>
         <div class="btn-glow"></div>
       </button>
@@ -141,7 +141,7 @@ const formattedDelay = computed(() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
             <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/>
           </svg>
-          <span class="btn-text">STOP BROADCAST</span>
+          <span class="btn-text">停止广播</span>
         </div>
         <div class="btn-glow"></div>
       </button>
@@ -157,7 +157,7 @@ const formattedDelay = computed(() => {
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
-          <span class="btn-text">CLEAR SUBTITLES</span>
+          <span class="btn-text">清空字幕</span>
         </div>
       </button>
     </div>
@@ -165,7 +165,7 @@ const formattedDelay = computed(() => {
     <!-- Loading overlay -->
     <div class="loading-overlay" v-if="isLoading">
       <div class="loading-spinner"></div>
-      <span class="loading-text">PROCESSING</span>
+      <span class="loading-text">处理中</span>
     </div>
   </div>
 </template>
