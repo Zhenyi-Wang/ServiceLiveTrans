@@ -34,6 +34,7 @@ class GGUFProvider(ASRProvider):
         self.temperature = config.get("temperature", 0.4)
         self.n_ctx = config.get("n_ctx", 2048)
         self.verbose = config.get("verbose", False)
+        self.send_partial = config.get("send_partial", False)
 
         # 缓冲策略
         self.max_buffer_sec = config.get("vad_max_buffer_sec", 10.0)
@@ -280,6 +281,8 @@ class GGUFProvider(ASRProvider):
         partial_text: list[str] = []
 
         def _on_token(piece: str) -> None:
+            if not provider.send_partial:
+                return
             partial_text.append(piece)
             result = ASRResult(type="partial", text="".join(partial_text), language="zh")
             provider._loop.call_soon_threadsafe(provider._result_queue.put_nowait, result)
