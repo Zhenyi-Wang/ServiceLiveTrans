@@ -1,5 +1,5 @@
 import type { WSMessage } from '../../../types/websocket'
-import { addConnection, removeConnection, sendTo } from '../../utils/websocket'
+import { addConnection, removeConnection, sendTo, getConnectionCount } from '../../utils/websocket'
 import { transcriptionState } from '../../utils/transcription-state'
 import { transcriptionManager } from '../../utils/transcription-manager'
 
@@ -12,7 +12,19 @@ export default defineWebSocketHandler({
       type: 'init',
       data: {
         current: transcriptionState.currentSubtitle?.text ?? null,
-        confirmed: transcriptionState.confirmedSubtitles
+        confirmed: transcriptionState.confirmedSubtitles,
+        transcriptionStatus: {
+          state: transcriptionManager.getState(),
+          audio: {
+            active: transcriptionManager.isActive(),
+            label: transcriptionManager.getSource() === 'mic' ? '麦克风' : transcriptionManager.getSource() === 'file' ? '文件' : transcriptionManager.getSource() === 'stream' ? '直播流' : '',
+          },
+          recognition: {
+            active: transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady(),
+          },
+          uptime: 0
+        },
+        connectionCount: getConnectionCount()
       }
     }
     sendTo(peer, initMessage)
