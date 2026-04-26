@@ -285,6 +285,7 @@ let bridgeStatus: 'disconnected' | 'connecting' | 'connected' = 'disconnected'
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let bridgeConfig: BridgeConfig | null = null
 let readyCallback: (() => void) | null = null
+let bridgeDisconnectCallback: (() => void) | null = null
 let partialVersion = 0
 
 // 音频源（仅 stream 源由后端管理）
@@ -456,7 +457,7 @@ export const transcriptionManager = {
         bridgeStatus = 'disconnected'
         asrReady = false
         console.log('[TranscriptionManager] ASR 连接断开')
-        scheduleBridgeReconnect()
+        bridgeDisconnectCallback?.()
       })
 
       ws.on('error', (err: Error) => {
@@ -490,6 +491,10 @@ export const transcriptionManager = {
 
   clearReadyCallback(): void {
     readyCallback = null
+  },
+
+  onBridgeDisconnect(callback: () => void): void {
+    bridgeDisconnectCallback = callback
   },
 
   sendAudioChunk(base64Pcm: string): boolean {
@@ -740,6 +745,15 @@ async function startService(): Promise<void> {
 
 async function connectAndLoadModel(config: StartConfig): Promise<void> {
   broadcastProgress('bridge-connecting')
+
+  // 注册 Bridge 断开回调，触发自动恢复
+  transcriptionManager.onBridgeDisconnect(() => {
+    // 避免在 stopping 状态时触发恢复
+    if (state === 'running') {
+      attemptRecovery()
+    }
+  })
+
   transcriptionManager.onReady(() => {
     broadcastProgress('model-ready')
     completedSteps.add('model')
@@ -831,7 +845,6 @@ async function doStop(): Promise<void> {
   currentConfig = null
   completedSteps.clear()
   errorDetail = null
-  transcriptionManager.setManagerState('idle')
 }
 
 export const orchestrator = {
@@ -856,7 +869,7 @@ export const orchestrator = {
 
       // 2. 如果未在线，启动服务
       if (!isHealthy) {
-        await withRetry(startService, '启动服务')
+        await startService()
       } else {
         broadcastProgress('health-ok')
         completedSteps.add('service')
