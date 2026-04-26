@@ -13,17 +13,14 @@ const status = ref<{
   subtitleCount: number
 } | null>(null)
 
-// ASR 相关状态
-const asrIsLoading = ref(false)
-const asrPanelRef = ref<InstanceType<typeof AdminASRControlPanel> | null>(null)
-const asrSourceConfig = ref<{ source: string; streamUrl?: string; overlapSec?: number; memoryChunks?: number }>({
-  source: 'mic'
-})
+// 转录状态（从 TranscriptionControlPanel 获取）
+const transcriptionConnectionCount = ref(0)
+const transcriptionSubtitleCount = ref(0)
+const transcriptionState = ref<string>('idle')
 
-// admin 页面 WS 连接（用于发送音频数据）
-const { send: wsSend } = useWebSocket({
-  onMessage: () => {}
-})
+function handleTranscriptionStatusChange(state: string) {
+  transcriptionState.value = state
+}
 
 // WS 测试相关
 const wsMessageType = ref<string>('current')
@@ -160,48 +157,10 @@ const handleClear = async () => {
   }
 }
 
-// ASR 控制 — 保存 source 配置
-const handleSourceSave = (config: { source: string; streamUrl?: string; overlapSec?: number; memoryChunks?: number }) => {
-  asrSourceConfig.value = config
-}
+// 当前延迟值
 
-// ASR 控制 — 启动
-const handleASRStart = async (config: { provider: string; model: string }) => {
-  asrIsLoading.value = true
-  try {
-    const fullConfig = {
-      ...config,
-      ...asrSourceConfig.value,
-    }
-    await $fetch('/api/asr/start', {
-      method: 'POST',
-      body: fullConfig
-    })
-
-    await fetchStatus()
-    asrPanelRef.value?.handleStartSuccess()
-  } catch (error: any) {
-    const msg = error?.data?.message || error.message || '启动失败'
-    console.error('Failed to start ASR:', msg)
-  } finally {
-    asrIsLoading.value = false
-  }
-}
-
-const handleASRStop = async () => {
-  asrIsLoading.value = true
-  try {
-    asrPanelRef.value?.stopCapture()
-    await $fetch('/api/asr/stop', { method: 'POST' })
-    await fetchStatus()
-  } catch (error) {
-    console.error('Failed to stop ASR:', error)
-  } finally {
-    asrIsLoading.value = false
-  }
-}
-
-// 测试面板折叠状态
+// 定时获取状态（模拟器仍需要）
+let statusInterval: ReturnType<typeof setInterval> | null = null
 const devToolsOpen = ref(false)
 
 // 当前延迟值
@@ -214,8 +173,7 @@ const formattedTime = computed(() => {
   return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}`
 })
 
-// 定时获取状态
-let statusInterval: ReturnType<typeof setInterval> | null = null
+// 时间显示
 let timeInterval: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
@@ -284,12 +242,12 @@ onUnmounted(() => {
         <div class="status-divider"></div>
         <div class="status-item">
           <span class="status-label">连接</span>
-          <span class="status-value">{{ status?.connectionCount ?? 0 }}</span>
+          <span class="status-value">{{ transcriptionConnectionCount }}</span>
         </div>
         <div class="status-divider"></div>
         <div class="status-item">
           <span class="status-label">字幕</span>
-          <span class="status-value">{{ status?.subtitleCount ?? 0 }}</span>
+          <span class="status-value">{{ transcriptionSubtitleCount }}</span>
         </div>
       </div>
     </header>
@@ -297,19 +255,11 @@ onUnmounted(() => {
     <!-- 主内容 -->
     <main class="control-main">
       <div class="control-grid">
-        <!-- ASR 控制面板 (Stream Source) -->
-        <AdminASRControlPanel
-          ref="asrPanelRef"
-          :active-source="asrSourceConfig.source"
-          :ws-send="wsSend"
-          @save="handleSourceSave"
-        />
-
-        <!-- ASR 状态面板 -->
-        <AdminModelStatusPanel
-          :is-loading="asrIsLoading"
-          @start="handleASRStart"
-          @stop="handleASRStop"
+        <!-- 转录控制面板 -->
+        <AdminTranscriptionControlPanel
+          :connection-count="transcriptionConnectionCount"
+          :subtitle-count="transcriptionSubtitleCount"
+          @status-change="handleTranscriptionStatusChange"
         />
 
         <!-- 开发测试工具（折叠） -->
