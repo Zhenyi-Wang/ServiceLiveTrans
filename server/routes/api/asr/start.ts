@@ -4,7 +4,7 @@ const VALID_SOURCES = ['mic', 'file', 'stream'] as const
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))
-  const { provider, model, source, streamUrl } = body
+  const { provider, model, source, streamUrl, overlapSec, memoryChunks } = body
 
   if (source && !VALID_SOURCES.includes(source)) {
     throw createError({
@@ -26,7 +26,9 @@ export default defineEventHandler(async (event) => {
     provider: provider || 'gguf',
     model: model || '',
     source: resolvedSource,
-    streamUrl
+    streamUrl,
+    overlapSec,
+    memoryChunks
   })
 
   if (!result.success) {
@@ -38,7 +40,6 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
-    spawned: result.spawned,
     provider,
     source: resolvedSource
   }

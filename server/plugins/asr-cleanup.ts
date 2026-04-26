@@ -1,8 +1,3 @@
-import { stopASRProcess } from '../utils/asr-process'
-
-export default defineNitroPlugin((nitroApp) => {
-  nitroApp.hooks.hook('close', () => {
-    console.log('[ASR Cleanup] Nuxt 关闭，清理 ASR 进程')
-    stopASRProcess()
-  })
+export default defineNitroPlugin(() => {
+  // Python ASR 进程由用户独立管理，Node 不再自动启停
 })
