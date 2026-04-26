@@ -164,8 +164,7 @@ const handleClear = async () => {
 
 // 当前延迟值
 
-// 定时获取状态（模拟器仍需要）
-let statusInterval: ReturnType<typeof setInterval> | null = null
+// 状态更新（模拟器操作后手动调用）
 const devToolsOpen = ref(false)
 
 // 当前延迟值
@@ -183,16 +182,12 @@ let timeInterval: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
   fetchStatus()
-  statusInterval = setInterval(fetchStatus, 2000)
   timeInterval = setInterval(() => {
     currentTime.value = new Date()
   }, 1000)
 })
 
 onUnmounted(() => {
-  if (statusInterval) {
-    clearInterval(statusInterval)
-  }
   if (timeInterval) {
     clearInterval(timeInterval)
   }

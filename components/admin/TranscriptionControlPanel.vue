@@ -440,12 +440,6 @@ onMounted(() => {
   }
   enumerateDevices()
   navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange)
-
-  // 定期轮询服务健康状态
-  const healthInterval = setInterval(fetchServiceHealth, 3000)
-  onUnmounted(() => {
-    clearInterval(healthInterval)
-  })
 })
 
 onUnmounted(() => {
