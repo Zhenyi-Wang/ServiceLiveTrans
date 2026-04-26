@@ -503,80 +503,6 @@ onUnmounted(() => {
 
         <!-- 状态面板 -->
         <AdminStatusPanel :status="status" />
-
-        <!-- 快捷操作 -->
-        <div class="quick-actions-panel">
-          <div class="panel-header">
-            <div class="panel-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
-            </div>
-            <span class="panel-title">快捷入口</span>
-          </div>
-
-          <div class="quick-actions">
-            <NuxtLink to="/" target="_blank" class="action-card">
-              <div class="action-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                  <line x1="8" y1="21" x2="16" y2="21"/>
-                  <line x1="12" y1="17" x2="12" y2="21"/>
-                </svg>
-              </div>
-              <div class="action-content">
-                <span class="action-title">前台展示</span>
-                <span class="action-desc">打开前台展示页</span>
-              </div>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-arrow">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                <polyline points="15 3 21 3 21 9"/>
-                <line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-            </NuxtLink>
-          </div>
-        </div>
-
-        <!-- 系统信息 -->
-        <div class="system-info-panel">
-          <div class="panel-header">
-            <div class="panel-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
-                <rect x="9" y="9" width="6" height="6"/>
-                <line x1="9" y1="1" x2="9" y2="4"/>
-                <line x1="15" y1="1" x2="15" y2="4"/>
-                <line x1="9" y1="20" x2="9" y2="23"/>
-                <line x1="15" y1="20" x2="15" y2="23"/>
-                <line x1="20" y1="9" x2="23" y2="9"/>
-                <line x1="20" y1="14" x2="23" y2="14"/>
-                <line x1="1" y1="9" x2="4" y2="9"/>
-                <line x1="1" y1="14" x2="4" y2="14"/>
-              </svg>
-            </div>
-            <span class="panel-title">系统信息</span>
-          </div>
-
-          <div class="system-info-grid">
-            <div class="info-row">
-              <span class="info-label">版本</span>
-              <span class="info-value">1.0.0</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">运行时间</span>
-              <span class="info-value">--:--:--</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">模式</span>
-              <span class="info-value highlight">模拟</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">延迟</span>
-              <span class="info-value">&lt;500ms</span>
-            </div>
-          </div>
-        </div>
       </div>
     </main>
 
@@ -848,8 +774,6 @@ onUnmounted(() => {
 }
 
 /* Panel common styles */
-.quick-actions-panel,
-.system-info-panel,
 .ws-test-panel {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.6) 100%);
   border: 1px solid rgba(56, 189, 248, 0.2);
@@ -857,17 +781,6 @@ onUnmounted(() => {
   padding: 1.5rem;
   position: relative;
   overflow: hidden;
-}
-
-.quick-actions-panel::before,
-.system-info-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.5), transparent);
 }
 
 .panel-header {
@@ -900,113 +813,6 @@ onUnmounted(() => {
   font-weight: 600;
   letter-spacing: 0.15em;
   color: #94a3b8;
-}
-
-/* Quick actions */
-.quick-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.action-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(56, 189, 248, 0.15);
-  border-radius: 12px;
-  text-decoration: none;
-  transition: all 0.3s ease;
-}
-
-.action-card:hover {
-  background: rgba(56, 189, 248, 0.1);
-  border-color: rgba(56, 189, 248, 0.4);
-  transform: translateX(4px);
-}
-
-.action-icon {
-  width: 44px;
-  height: 44px;
-  background: rgba(56, 189, 248, 0.15);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #38bdf8;
-}
-
-.action-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.action-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.action-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #e2e8f0;
-  letter-spacing: 0.1em;
-}
-
-.action-desc {
-  font-size: 0.75rem;
-  color: rgba(148, 163, 184, 0.7);
-  margin-top: 0.25rem;
-}
-
-.action-arrow {
-  width: 20px;
-  height: 20px;
-  color: rgba(56, 189, 248, 0.6);
-  transition: all 0.3s ease;
-}
-
-.action-card:hover .action-arrow {
-  color: #38bdf8;
-  transform: translate(2px, -2px);
-}
-
-/* System info */
-.system-info-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  border-left: 3px solid rgba(56, 189, 248, 0.3);
-}
-
-.info-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.15em;
-  color: rgba(148, 163, 184, 0.6);
-}
-
-.info-value {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #e2e8f0;
-}
-
-.info-value.highlight {
-  color: #22d3ee;
 }
 
 /* Dev Tools Section */
