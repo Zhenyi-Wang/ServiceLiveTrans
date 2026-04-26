@@ -34,8 +34,8 @@ const fileWaveform = useWaveformRenderer(fileCanvasRef)
 
 const showAdvanced = ref(false)
 
-const micVolume = ref(5)
-const fileVolume = ref(5)
+const micVolume = useLocalStorage('asr-mic-volume', 5)
+const fileVolume = useLocalStorage('asr-file-volume', 5)
 
 // slider 0-10 → gain 0-10（指数曲线）
 // s=0: mute, s=5: gain=1(100%), s=10: gain=10(1000%)
