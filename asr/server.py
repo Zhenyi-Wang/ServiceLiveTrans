@@ -30,6 +30,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+logging.getLogger("websockets.server").setLevel(logging.WARNING)
 
 config = ASRConfig()
 manager: ModelManager | None = None
