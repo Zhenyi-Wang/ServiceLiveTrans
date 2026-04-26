@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { WSMessage, AudioSourceCommandData } from '~/types/websocket'
+import type { WSMessage, AudioSourceCommandData, TranscriptionStatusData } from '~/types/websocket'
 
 const props = defineProps<{
   connectionCount: number
@@ -20,20 +20,26 @@ const { send: wsSend } = useWebSocket({
     if (msg.type === 'audio-source-start') {
       const data = msg.data as AudioSourceCommandData
       if (data.source === 'mic') {
+        stopMicCapture()
         startMicCapture()
-      } else if (data.source === 'file') {
-        startFilePlayback()
       }
     } else if (msg.type === 'audio-source-stop') {
       stopCapture()
     }
     // 处理转录状态消息
     transcription.handleWSMessage(msg)
+    // 同步音频源类型
+    if (msg.type === 'init' || msg.type === 'transcription-status') {
+      const ts = msg.data as TranscriptionStatusData
+      if (ts.source) {
+        source.value = ts.source
+      }
+    }
   }
 })
 
 // ─── Audio source ──────────────────────────────────────────
-const source = ref<'mic' | 'file' | 'stream'>('mic')
+const source = ref<'mic' | 'stream'>('mic')
 const DEFAULT_STREAM_URL = 'http://mini:8080/live/livestream.flv'
 const streamUrl = ref('')
 
@@ -43,24 +49,12 @@ const selectedDeviceId = ref<string>('')
 const statusMessage = ref('')
 const statusType = ref<'error' | 'info'>('error')
 
-const fileInput = ref<HTMLInputElement | null>(null)
-const filePlayer = useAudioFilePlayer({
-  onAudioChunk: (base64Pcm) => {
-    wsSend({ type: 'audio', data: base64Pcm })
-  },
-  onError: (msg) => { setStatus(msg, 'error') },
-  onEnded: () => { setStatus('文件播放完毕', 'info') }
-})
-
 const micCanvasRef = ref<HTMLCanvasElement | null>(null)
-const fileCanvasRef = ref<HTMLCanvasElement | null>(null)
 const micWaveform = useWaveformRenderer(micCanvasRef)
-const fileWaveform = useWaveformRenderer(fileCanvasRef)
 
 const showAdvanced = ref(false)
 
 const micVolume = useLocalStorage('asr-mic-volume', 5)
-const fileVolume = useLocalStorage('asr-file-volume', 5)
 
 // ─── Advanced settings ─────────────────────────────────────
 const advancedSettings = ref({
@@ -74,24 +68,7 @@ const advancedSettings = ref({
 
 const provider = ref('gguf')
 
-const serviceHealth = ref<{
-  status: 'ok' | 'offline'
-  available_providers?: string[]
-}>({ status: 'offline' })
-
-const serviceLoading = ref(false)
-
-const availableProviders = computed(() => {
-  return serviceHealth.value.available_providers?.length
-    ? serviceHealth.value.available_providers!
-    : ['gguf']
-})
-
-watch(availableProviders, (providers) => {
-  if (providers.length > 0 && !providers.includes(provider.value)) {
-    provider.value = providers[0]
-  }
-}, { immediate: true })
+const availableProviders = ref<string[]>(['gguf'])
 
 // ─── Helpers ───────────────────────────────────────────────
 function sliderToGain(s: number): number {
@@ -114,12 +91,6 @@ function formatUptime(seconds: number): string {
   const m = Math.floor((seconds % 3600) / 60)
   const s = seconds % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 // ─── Step labels ───────────────────────────────────────────
@@ -245,54 +216,10 @@ function stopMicCapture() {
   isMicMonitoring.value = false
 }
 
-// ─── Audio file playback ───────────────────────────────────
-function startFilePlayback() {
-  if (!filePlayer.audioBuffer.value) {
-    setStatus('请先选择音频文件', 'error')
-    return
-  }
-  filePlayer.play()
-}
-
-function handleFileSelect(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) {
-    statusMessage.value = ''
-    filePlayer.loadFile(file)
-  }
-}
-
-function handleSeek(event: Event) {
-  const input = event.target as HTMLInputElement
-  const time = parseFloat(input.value)
-  filePlayer.seek(time)
-}
-
-function handleWaveformClick(event: MouseEvent) {
-  if (!filePlayer.fileInfo.value || !filePlayer.audioBuffer.value) return
-  const canvas = fileCanvasRef.value
-  if (!canvas) return
-  const rect = canvas.getBoundingClientRect()
-  const x = event.clientX - rect.left
-  const progress = x / rect.width
-  const time = progress * filePlayer.audioBuffer.value.duration
-  filePlayer.seek(time)
-}
-
-function toggleFilePlayback() {
-  if (filePlayer.isPlaying.value) {
-    filePlayer.pause()
-  } else if (filePlayer.audioBuffer.value) {
-    filePlayer.play()
-  }
-}
-
 // ─── Stop all capture ──────────────────────────────────────
 function stopCapture() {
   micWaveform.stopAnimation()
   stopMicCapture()
-  filePlayer.stop()
 }
 
 // ─── Fetch helpers ─────────────────────────────────────────
@@ -303,45 +230,6 @@ async function fetchASRConfig() {
     if (data.memory_chunks !== undefined) advancedSettings.value.memoryChunks = data.memory_chunks as number
   } catch {
     // config API 不可用时忽略
-  }
-}
-
-async function fetchServiceHealth() {
-  try {
-    const data = await $fetch<{
-      status: string
-      available_providers?: string[]
-    }>('/api/asr/service-health')
-    serviceHealth.value = {
-      status: data.status === 'ok' ? 'ok' : 'offline',
-      available_providers: data.available_providers,
-    }
-  } catch {
-    serviceHealth.value = { status: 'offline' }
-  }
-}
-
-async function startService() {
-  serviceLoading.value = true
-  try {
-    await $fetch('/api/asr/service-start', { method: 'POST' })
-    await fetchServiceHealth()
-  } catch {
-    // ignore, next poll will update
-  } finally {
-    serviceLoading.value = false
-  }
-}
-
-async function stopService() {
-  serviceLoading.value = true
-  try {
-    await $fetch('/api/asr/service-stop', { method: 'POST' })
-    await fetchServiceHealth()
-  } catch {
-    // ignore
-  } finally {
-    serviceLoading.value = false
   }
 }
 
@@ -361,9 +249,84 @@ async function handleStop() {
   await transcription.stopTranscription()
 }
 
-function handleSourceSelect(newSource: 'mic' | 'file' | 'stream') {
+// ─── Independent audio/recognition toggles ────────────────
+const audioLoading = ref(false)
+const recognitionLoading = ref(false)
+
+async function toggleAudio() {
+  if (audioLoading.value) return
+
+  if (!transcription.audio.value.active) {
+    if (!transcription.recognition.value.active) {
+      setStatus('请先启动识别服务', 'error')
+      return
+    }
+    audioLoading.value = true
+    try {
+      await transcription.startAudioOnly({
+        source: source.value,
+        ...(source.value === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {}),
+      })
+    } finally {
+      audioLoading.value = false
+    }
+  } else {
+    audioLoading.value = true
+    try {
+      await transcription.stopAudioOnly()
+    } finally {
+      audioLoading.value = false
+    }
+  }
+}
+
+async function toggleRecognition() {
+  if (recognitionLoading.value) return
+
+  if (!transcription.recognition.value.active) {
+    recognitionLoading.value = true
+    try {
+      await transcription.startRecognitionOnly({
+        provider: provider.value,
+        overlapSec: advancedSettings.value.overlapSec,
+        memoryChunks: advancedSettings.value.memoryChunks,
+      })
+    } finally {
+      recognitionLoading.value = false
+    }
+  } else {
+    if (transcription.audio.value.active) {
+      if (!confirm('音频源正在运行，是否一并停止？')) {
+        recognitionLoading.value = true
+        try {
+          await transcription.stopRecognitionOnly()
+        } finally {
+          recognitionLoading.value = false
+        }
+        return
+      }
+      recognitionLoading.value = true
+      audioLoading.value = true
+      try {
+        await transcription.stopRecognitionOnly()
+        await transcription.stopAudioOnly()
+      } finally {
+        recognitionLoading.value = false
+        audioLoading.value = false
+      }
+    } else {
+      recognitionLoading.value = true
+      try {
+        await transcription.stopRecognitionOnly()
+      } finally {
+        recognitionLoading.value = false
+      }
+    }
+  }
+}
+
+function handleSourceSelect(newSource: 'mic' | 'stream') {
   if (transcription.state.value === 'running') {
-    // 运行中切换源
     transcription.switchSource({
       source: newSource,
       ...(newSource === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {})
@@ -374,19 +337,6 @@ function handleSourceSelect(newSource: 'mic' | 'file' | 'stream') {
 }
 
 // ─── Watchers ──────────────────────────────────────────────
-// 同步文件音量
-watch(fileVolume, (v) => {
-  filePlayer.volume.value = sliderToGain(v)
-})
-
-// 文件播放进度 → 波形重绘
-watch(() => filePlayer.currentTime.value, () => {
-  if (filePlayer.waveformPeaks.value && filePlayer.audioBuffer.value) {
-    const progress = filePlayer.currentTime.value / filePlayer.audioBuffer.value.duration
-    fileWaveform.drawStaticWaveform(filePlayer.waveformPeaks.value, progress, fileVolume.value)
-  }
-})
-
 // 音源切换（非运行态）
 watch(source, (val) => {
   if (transcription.state.value === 'running') return
@@ -396,30 +346,8 @@ watch(source, (val) => {
   nextTick(async () => {
     if (val === 'mic') {
       await startMicCapture(false)
-    } else if (val === 'file') {
-      micWaveform.drawRealtimeWaveform(null)
-      if (filePlayer.waveformPeaks.value) {
-        fileWaveform.drawStaticWaveform(filePlayer.waveformPeaks.value, 0, fileVolume.value)
-      } else {
-        fileWaveform.drawRealtimeWaveform(null)
-      }
     }
   })
-})
-
-// 文件波形 peaks 变化时重绘
-watch(() => filePlayer.waveformPeaks.value, (peaks) => {
-  if (peaks && source.value === 'file') {
-    nextTick(() => fileWaveform.drawStaticWaveform(peaks, 0, fileVolume.value))
-  }
-})
-
-// 文件音量变化时重绘波形
-watch(fileVolume, () => {
-  if (source.value === 'file' && filePlayer.waveformPeaks.value && filePlayer.audioBuffer.value) {
-    const progress = filePlayer.currentTime.value / filePlayer.audioBuffer.value.duration
-    fileWaveform.drawStaticWaveform(filePlayer.waveformPeaks.value, progress, fileVolume.value)
-  }
 })
 
 // 状态变化通知父组件
@@ -436,7 +364,6 @@ watch([transcription.connectionCount, transcription.subtitleCount], ([cc, sc]) =
 onMounted(() => {
   if (import.meta.client) {
     fetchASRConfig()
-    fetchServiceHealth()
   }
   enumerateDevices()
   navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange)
@@ -445,7 +372,6 @@ onMounted(() => {
 onUnmounted(() => {
   navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange)
   stopCapture()
-  filePlayer.destroy()
 })
 </script>
 
@@ -475,13 +401,6 @@ onUnmounted(() => {
           @click="handleSourceSelect('mic')"
         >
           麦克风
-        </button>
-        <button
-          class="source-btn"
-          :class="{ active: source === 'file' }"
-          @click="handleSourceSelect('file')"
-        >
-          文件
         </button>
         <button
           class="source-btn"
@@ -521,64 +440,6 @@ onUnmounted(() => {
           <input
             type="range" min="0" max="10" step="0.1"
             v-model.number="micVolume"
-            class="volume-bar"
-          />
-        </div>
-      </template>
-
-      <!-- File Section -->
-      <template v-if="source === 'file'">
-        <div class="form-row">
-          <label class="form-label">音频文件</label>
-          <div class="file-select-row">
-            <input ref="fileInput" type="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.wma,.aac,.webm" class="file-input-hidden" @change="handleFileSelect" />
-            <button type="button" class="file-select-btn" @click="fileInput?.click()">
-              {{ filePlayer.fileInfo.value ? filePlayer.fileInfo.value.name : '选择文件...' }}
-            </button>
-            <span v-if="filePlayer.fileInfo.value" class="file-duration">
-              {{ formatTime(filePlayer.fileInfo.value.duration) }}
-            </span>
-          </div>
-        </div>
-
-        <div v-if="filePlayer.fileInfo.value" class="form-row">
-          <label class="form-label">
-            进度
-            <div class="progress-controls">
-              <span class="progress-time">
-                {{ formatTime(filePlayer.currentTime.value) }} / {{ formatTime(filePlayer.fileInfo.value.duration) }}
-              </span>
-              <button class="ctrl-btn" @click="toggleFilePlayback">
-                {{ filePlayer.isPlaying.value ? '暂停' : '播放' }}
-              </button>
-            </div>
-          </label>
-          <input
-            type="range"
-            :min="0"
-            :max="filePlayer.fileInfo.value.duration"
-            :step="0.01"
-            :value="filePlayer.currentTime.value"
-            class="progress-bar"
-            @input="handleSeek"
-          />
-        </div>
-
-        <div class="form-row">
-          <label class="form-label">波形</label>
-          <div class="waveform-container" @click="handleWaveformClick">
-            <canvas ref="fileCanvasRef" class="waveform-canvas" />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <label class="form-label">
-            音量
-            <span class="volume-value"><ClientOnly>{{ gainToPercent(fileVolume) }}</ClientOnly></span>
-          </label>
-          <input
-            type="range" min="0" max="10" step="0.1"
-            v-model.number="fileVolume"
             class="volume-bar"
           />
         </div>
@@ -630,6 +491,14 @@ onUnmounted(() => {
               ></span>
               {{ transcription.audio.value.active ? transcription.audio.value.label : '未启动' }}
             </span>
+            <button
+              class="sub-toggle-btn"
+              :class="transcription.audio.value.active ? 'on' : 'off'"
+              :disabled="audioLoading || isTransitioning"
+              @click="toggleAudio"
+            >
+              {{ audioLoading ? '...' : (transcription.audio.value.active ? '停止' : '启动') }}
+            </button>
           </div>
           <div class="sub-status-row">
             <span class="sub-status-label">识别</span>
@@ -641,6 +510,14 @@ onUnmounted(() => {
               ></span>
               {{ transcription.recognition.value.active ? '运行中' : (transcription.recognition.value.detail || '已停止') }}
             </span>
+            <button
+              class="sub-toggle-btn"
+              :class="transcription.recognition.value.active ? 'on' : 'off'"
+              :disabled="recognitionLoading || isTransitioning"
+              @click="toggleRecognition"
+            >
+              {{ recognitionLoading ? '...' : (transcription.recognition.value.active ? '停止' : '启动') }}
+            </button>
           </div>
         </div>
 
@@ -795,43 +672,14 @@ onUnmounted(() => {
             <span>降噪</span>
           </label>
         </div>
-
-        <!-- Service control -->
-        <div class="service-control">
-          <div class="service-control-header">
-            <span class="form-label">识别服务</span>
-            <span
-              class="service-status-badge"
-              :class="serviceHealth.status === 'ok' ? 'online' : 'offline'"
-            >
-              {{ serviceHealth.status === 'ok' ? '在线' : '离线' }}
-            </span>
-          </div>
-          <div class="service-control-actions">
-            <button
-              v-if="serviceHealth.status !== 'ok'"
-              class="service-btn start"
-              :disabled="serviceLoading || !canStart"
-              @click="startService"
-            >
-              {{ serviceLoading ? '正在启动...' : '启动' }}
-            </button>
-            <button
-              v-else
-              class="service-btn stop"
-              :disabled="serviceLoading || !canStart"
-              @click="stopService"
-            >
-              {{ serviceLoading ? '正在停止...' : '停止' }}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+
 .panel {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.6) 100%);
   border: 1px solid rgba(56, 189, 248, 0.2);
@@ -912,7 +760,7 @@ onUnmounted(() => {
 /* ── Source grid ── */
 .source-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.5rem;
 }
 
@@ -984,104 +832,6 @@ onUnmounted(() => {
 
 .device-status.empty {
   color: rgba(248, 113, 113, 0.7);
-}
-
-/* ── File section ── */
-.file-select-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.file-select-btn {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  border-radius: 8px;
-  color: #e2e8f0;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  cursor: pointer;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: all 0.3s ease;
-}
-
-.file-select-btn:hover {
-  border-color: rgba(56, 189, 248, 0.4);
-}
-
-.file-duration {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  color: #38bdf8;
-  white-space: nowrap;
-}
-
-.file-input-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.progress-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.progress-time {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.7rem;
-  color: rgba(56, 189, 248, 0.7);
-}
-
-.progress-bar {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 6px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 3px;
-  outline: none;
-  cursor: pointer;
-}
-
-.progress-bar::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  background: #38bdf8;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
-}
-
-.ctrl-btn {
-  padding: 0.3rem 0.6rem;
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  border-radius: 6px;
-  color: #38bdf8;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.ctrl-btn:hover {
-  background: rgba(56, 189, 248, 0.2);
 }
 
 /* ── Volume ── */
@@ -1238,6 +988,44 @@ onUnmounted(() => {
   border-radius: 50%;
   flex-shrink: 0;
   transition: background 0.3s;
+}
+
+.sub-toggle-btn {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.sub-toggle-btn.off {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.sub-toggle-btn.off:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.sub-toggle-btn.on {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: rgba(239, 68, 68, 0.8);
+}
+
+.sub-toggle-btn.on:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.sub-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .error-message {
@@ -1473,82 +1261,4 @@ onUnmounted(() => {
   letter-spacing: 0.1em;
 }
 
-/* ── Service control ── */
-.service-control {
-  padding: 0.75rem;
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.08);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.service-control-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.service-status-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.65rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  letter-spacing: 0.08em;
-}
-
-.service-status-badge.online {
-  background: rgba(34, 211, 238, 0.1);
-  color: #22d3ee;
-  border: 1px solid rgba(34, 211, 238, 0.3);
-}
-
-.service-status-badge.offline {
-  background: rgba(148, 163, 184, 0.1);
-  color: #94a3b8;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.service-control-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.service-btn {
-  flex: 1;
-  padding: 0.5rem;
-  border-radius: 6px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid;
-}
-
-.service-btn.start {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #10b981;
-}
-
-.service-btn.start:hover:not(:disabled) {
-  background: rgba(16, 185, 129, 0.2);
-}
-
-.service-btn.stop {
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.25);
-  color: rgba(239, 68, 68, 0.8);
-}
-
-.service-btn.stop:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.15);
-}
-
-.service-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 </style>

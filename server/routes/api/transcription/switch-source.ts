@@ -1,6 +1,6 @@
 import { orchestrator } from '../../../utils/transcription-orchestrator'
 
-const VALID_SOURCES = ['mic', 'file', 'stream'] as const
+const VALID_SOURCES = ['mic', 'stream'] as const
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))

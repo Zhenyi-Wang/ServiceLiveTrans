@@ -18,6 +18,14 @@ export default defineWebSocketHandler({
       }
     }
     sendTo(peer, initMessage)
+
+    const status = getStatusData()
+    if (status.audio.active && status.state === 'running') {
+      const source = transcriptionManager.getSource()
+      if (source === 'mic') {
+        sendTo(peer, { type: 'audio-source-start', data: { source } })
+      }
+    }
   },
   message(peer, message) {
     try {
