@@ -13,6 +13,7 @@ export function useWaveformRenderer(
   const height = options.height ?? 60
 
   let animFrameId: number | null = null
+  let currentAnalyser: AnalyserNode | null = null
 
   function drawRealtimeWaveform(analyserNode: AnalyserNode | null) {
     const canvas = canvasRef.value
@@ -21,16 +22,25 @@ export function useWaveformRenderer(
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    stopAnimation()
+    currentAnalyser = analyserNode
+
     canvas.height = height
-    const width = canvas.clientWidth
+    const width = canvas.clientWidth || 300
     canvas.width = width
 
-    function draw() {
-      if (!analyserNode || !canvas || !ctx) return
+    const bufferLength = analyserNode?.frequencyBinCount ?? 1024
+    const dataArray = new Uint8Array(bufferLength)
 
-      const bufferLength = analyserNode.frequencyBinCount
-      const dataArray = new Uint8Array(bufferLength)
-      analyserNode.getByteTimeDomainData(dataArray)
+    function draw() {
+      if (!canvas || !ctx) return
+
+      if (currentAnalyser) {
+        currentAnalyser.getByteTimeDomainData(dataArray)
+      } else {
+        // 无 analyser 时填充静默数据（128 = 中心线）
+        dataArray.fill(128)
+      }
 
       ctx.fillStyle = bgColor
       ctx.fillRect(0, 0, width, height)
@@ -63,7 +73,7 @@ export function useWaveformRenderer(
     draw()
   }
 
-  function drawStaticWaveform(peaks: Float32Array, progress?: number) {
+  function drawStaticWaveform(peaks: Float32Array, progress?: number, volumeScale?: number) {
     const canvas = canvasRef.value
     if (!canvas) return
 
@@ -71,7 +81,7 @@ export function useWaveformRenderer(
     if (!ctx) return
 
     canvas.height = height
-    const width = canvas.clientWidth
+    const width = canvas.clientWidth || 300
     canvas.width = width
 
     ctx.fillStyle = bgColor
@@ -79,9 +89,10 @@ export function useWaveformRenderer(
 
     const barWidth = width / peaks.length
     const halfHeight = height / 2
+    const scale = volumeScale ?? 1
 
     for (let i = 0; i < peaks.length; i++) {
-      const barHeight = peaks[i] * halfHeight
+      const barHeight = peaks[i] * halfHeight * scale
       const x = i * barWidth
 
       ctx.fillStyle = color
@@ -102,33 +113,12 @@ export function useWaveformRenderer(
     }
   }
 
-  function drawIdle() {
-    const canvas = canvasRef.value
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    canvas.height = height
-    const width = canvas.clientWidth
-    canvas.width = width
-
-    ctx.fillStyle = bgColor
-    ctx.fillRect(0, 0, width, height)
-
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(0, height / 2)
-    ctx.lineTo(width, height / 2)
-    ctx.stroke()
-  }
-
   function stopAnimation() {
     if (animFrameId !== null) {
       cancelAnimationFrame(animFrameId)
       animFrameId = null
     }
+    currentAnalyser = null
   }
 
   onUnmounted(() => {
@@ -138,7 +128,6 @@ export function useWaveformRenderer(
   return {
     drawRealtimeWaveform,
     drawStaticWaveform,
-    drawIdle,
     stopAnimation
   }
 }

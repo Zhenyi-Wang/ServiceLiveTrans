@@ -29,6 +29,7 @@ export function useAudioFilePlayer(options: AudioFilePlayerOptions) {
   const audioBuffer = ref<AudioBuffer | null>(null)
   const fileInfo = ref<AudioFileInfo | null>(null)
   const waveformPeaks = ref<Float32Array | null>(null)
+  const volume = ref(1.0)
 
   let intervalId: ReturnType<typeof setInterval> | null = null
   let currentChunkIndex = 0
@@ -147,7 +148,7 @@ export function useAudioFilePlayer(options: AudioFilePlayerOptions) {
     for (let i = 0; i < chunkSampleCount; i++) {
       const srcIndex = Math.min(startSample + Math.floor(i * ratio), endSample - 1)
       const sample = srcIndex >= 0 ? sourceChannel[srcIndex] : 0
-      pcm16[i] = Math.max(-32768, Math.min(32767, Math.round(sample * 32767)))
+      pcm16[i] = Math.max(-32768, Math.min(32767, Math.round(sample * volume.value * 32767)))
     }
 
     const base64 = arrayBufferToBase64(pcm16.buffer)
@@ -193,6 +194,7 @@ export function useAudioFilePlayer(options: AudioFilePlayerOptions) {
     audioBuffer: readonly(audioBuffer),
     fileInfo: readonly(fileInfo),
     waveformPeaks: readonly(waveformPeaks),
+    volume,
     loadFile,
     play,
     pause,
