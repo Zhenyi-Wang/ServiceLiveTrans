@@ -13,6 +13,7 @@ const activeConnections = new Set<any>()
  */
 export function addConnection(peer: any) {
   activeConnections.add(peer)
+  broadcastConnectionCount()
 }
 
 /**
@@ -20,6 +21,14 @@ export function addConnection(peer: any) {
  */
 export function removeConnection(peer: any) {
   activeConnections.delete(peer)
+  broadcastConnectionCount()
+}
+
+function broadcastConnectionCount() {
+  broadcast({
+    type: 'connection-count',
+    data: { count: activeConnections.size }
+  })
 }
 
 /**
