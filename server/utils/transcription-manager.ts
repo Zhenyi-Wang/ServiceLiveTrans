@@ -5,7 +5,7 @@ import { transcriptionState } from './transcription-state'
 import { processAI } from './ai-processor'
 import type { AudioSource } from './audio-source/base'
 
-export type SourceType = 'mic' | 'file' | 'stream'
+export type SourceType = 'mic' | 'stream'
 
 interface BridgeConfig {
   url: string
@@ -123,7 +123,7 @@ function _onError(error: Error): void {
 // === 状态广播 ===
 
 export function getStatusData(): TranscriptionStatusData {
-  const sourceLabel = currentSource === 'mic' ? '麦克风' : currentSource === 'file' ? '文件' : currentSource === 'stream' ? '直播流' : ''
+  const sourceLabel = currentSource === 'mic' ? '麦克风' : currentSource === 'stream' ? '直播流' : ''
   const sourceStatus = audioSource?.getStatus()
   const audioDetail = sourceStatus
     ? (sourceStatus.state === 'running' ? '运行中' : sourceStatus.state === 'connecting' ? '连接中' : sourceStatus.state === 'error' ? '错误' : undefined)
@@ -131,6 +131,7 @@ export function getStatusData(): TranscriptionStatusData {
 
   return {
     state: managerState,
+    source: currentSource,
     audio: {
       active: currentSource !== null,
       label: sourceLabel,
@@ -184,6 +185,9 @@ export const transcriptionManager = {
             console.log('[TranscriptionManager] 模型就绪')
             asrReady = true
             readyCallback?.()
+            while (pendingAudio.length > 0) {
+              sendAudioChunkToASR(pendingAudio.shift()!.toString('base64'))
+            }
           } else if (msg.type === 'unloaded') {
             console.log('[TranscriptionManager] 模型已卸载')
           }
@@ -292,6 +296,15 @@ export const transcriptionManager = {
 
   setStartTime(): void {
     startTime = Date.now()
+  },
+
+  getStartTime(): number | null {
+    return startTime
+  },
+
+  clearAudioSource(): void {
+    currentSource = null
+    audioSource = null
   },
 
   resetState(): void {

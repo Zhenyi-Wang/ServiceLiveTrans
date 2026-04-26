@@ -1,5 +1,5 @@
-import { transcriptionManager, type SourceType } from './transcription-manager'
-import { getASRServiceHealth, startASRProcess, stopASRProcess } from './asr-process'
+import { transcriptionManager, broadcastStatus, type SourceType } from './transcription-manager'
+import { getASRServiceHealth, startASRProcess } from './asr-process'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
 import { stopSimulation } from './simulator'
@@ -43,8 +43,8 @@ async function withRetry<T>(
       return await fn()
     } catch (e: any) {
       if (i === maxRetries) throw e
-      console.log(`[Orchestrator] ${stepName} 失败，${delays[i] / 1000}s 后重试 (${i + 1}/${maxRetries}): ${e.message}`)
-      await delay(delays[i])
+      console.log(`[Orchestrator] ${stepName} 失败，${delays[i]! / 1000}s 后重试 (${i + 1}/${maxRetries}): ${e.message}`)
+      await delay(delays[i]!)
     }
   }
   throw new Error('unreachable')
@@ -167,6 +167,26 @@ async function startAudioSource(config: StartConfig): Promise<void> {
   completedSteps.add('source')
 }
 
+function updateOverallState(): void {
+  const audioActive = transcriptionManager.hasStreamSource() || transcriptionManager.getSource() !== null
+  const recognitionActive = transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady()
+
+  if (audioActive || recognitionActive) {
+    state = 'running'
+    transcriptionManager.setManagerState('running')
+    transcriptionState.isActive = true
+    transcriptionState.source = 'asr'
+  } else {
+    transcriptionManager.resetState()
+    state = 'idle'
+    currentConfig = null
+    completedSteps.clear()
+    errorDetail = null
+  }
+  broadcastStatus()
+  broadcast({ type: 'transcription-progress', data: { step: '' } })
+}
+
 async function doStop(): Promise<void> {
   state = 'stopping'
   transcriptionManager.setManagerState('stopping')
@@ -180,20 +200,18 @@ async function doStop(): Promise<void> {
   broadcastProgress('stopping-bridge')
   transcriptionManager.disconnectBridge()
 
-  broadcastProgress('stopping-service')
-  stopASRProcess()
-
   transcriptionManager.resetState()
   state = 'idle'
   currentConfig = null
   completedSteps.clear()
   errorDetail = null
+  broadcastStatus()
 }
 
 export const orchestrator = {
   async start(config: StartConfig): Promise<{ success: boolean; error?: string }> {
-    if (state === 'starting' || state === 'running' || state === 'stopping') {
-      return { success: false, error: '正在运行或操作中' }
+    if (state === 'starting' || state === 'stopping') {
+      return { success: false, error: '正在操作中' }
     }
 
     state = 'starting'
@@ -206,21 +224,27 @@ export const orchestrator = {
     transcriptionManager.setManagerState('starting')
 
     try {
-      broadcastProgress('health-checking')
-      const isHealthy = await healthCheck()
+      const asrReady = transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady()
 
-      if (!isHealthy) {
-        await startService()
-      } else {
-        broadcastProgress('health-ok')
-        completedSteps.add('service')
+      if (!asrReady) {
+        broadcastProgress('health-checking')
+        const isHealthy = await healthCheck()
+
+        if (!isHealthy) {
+          await startService()
+        } else {
+          broadcastProgress('health-ok')
+          completedSteps.add('service')
+        }
+
+        if (!completedSteps.has('bridge')) {
+          await withRetry(() => connectAndLoadModel(config), '连接 Bridge')
+        }
       }
 
-      if (!completedSteps.has('bridge')) {
-        await withRetry(() => connectAndLoadModel(config), '连接 Bridge')
+      if (!completedSteps.has('source')) {
+        await withRetry(() => startAudioSource(config), '启动音频源')
       }
-
-      await withRetry(() => startAudioSource(config), '启动音频源')
 
       state = 'running'
       transcriptionManager.setManagerState('running')
@@ -240,6 +264,82 @@ export const orchestrator = {
   async stop(): Promise<void> {
     if (state === 'idle') return
     await doStop()
+  },
+
+  async startAudioOnly(config: { source: SourceType; streamUrl?: string }): Promise<{ success: boolean; error?: string }> {
+    if (transcriptionManager.getSource() !== null) {
+      return { success: false, error: '音频源已在运行' }
+    }
+
+    currentConfig = currentConfig || { source: config.source, streamUrl: config.streamUrl }
+    currentConfig.source = config.source
+    if (config.streamUrl) currentConfig.streamUrl = config.streamUrl
+
+    transcriptionManager.setSource(config.source)
+    if (!transcriptionManager.getStartTime()) {
+      transcriptionManager.setStartTime()
+    }
+
+    try {
+      await startAudioSource(currentConfig)
+      updateOverallState()
+      return { success: true }
+    } catch (e: any) {
+      console.error(`[Orchestrator] 启动音频源失败: ${e.message}`)
+      return { success: false, error: e.message }
+    }
+  },
+
+  async stopAudioOnly(): Promise<void> {
+    broadcastProgress('stopping-source')
+    if (transcriptionManager.hasStreamSource()) {
+      transcriptionManager.stopStreamSource()
+    }
+    broadcast({ type: 'audio-source-stop', data: {} })
+
+    transcriptionManager.clearAudioSource()
+    completedSteps.delete('source')
+    updateOverallState()
+  },
+
+  async startRecognitionOnly(config: { provider?: string; model?: string; overlapSec?: number; memoryChunks?: number }): Promise<{ success: boolean; error?: string }> {
+    if (transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady()) {
+      return { success: false, error: '识别服务已在运行' }
+    }
+
+    try {
+      broadcastProgress('health-checking')
+      const isHealthy = await healthCheck()
+
+      if (!isHealthy) {
+        await startService()
+      } else {
+        broadcastProgress('health-ok')
+        completedSteps.add('service')
+      }
+
+      const bridgeConfig: StartConfig = {
+        source: currentConfig?.source || 'mic',
+        ...config,
+      }
+      await withRetry(() => connectAndLoadModel(bridgeConfig), '连接 Bridge')
+
+      updateOverallState()
+      return { success: true }
+    } catch (e: any) {
+      console.error(`[Orchestrator] 启动识别服务失败: ${e.message}`)
+      return { success: false, error: e.message }
+    }
+  },
+
+  async stopRecognitionOnly(): Promise<void> {
+    broadcastProgress('stopping-bridge')
+    transcriptionManager.disconnectBridge()
+
+    completedSteps.delete('service')
+    completedSteps.delete('bridge')
+    completedSteps.delete('model')
+    updateOverallState()
   },
 
   async switchSource(newSource: SourceType, streamUrl?: string): Promise<{ success: boolean; error?: string }> {
@@ -264,7 +364,7 @@ export const orchestrator = {
       }
 
       transcriptionManager.setSource(newSource)
-      transcriptionManager.broadcastStatus()
+      broadcastStatus()
 
       if (currentConfig) {
         currentConfig.source = newSource
