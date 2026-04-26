@@ -14,9 +14,11 @@ const status = ref<{
 } | null>(null)
 
 // ASR 相关状态
-const asrIsRunning = ref(false)
 const asrIsLoading = ref(false)
 const asrPanelRef = ref<InstanceType<typeof AdminASRControlPanel> | null>(null)
+const asrSourceConfig = ref<{ source: string; streamUrl?: string; overlapSec?: number; memoryChunks?: number }>({
+  source: 'mic'
+})
 
 // admin 页面 WS 连接（用于发送音频数据）
 const { send: wsSend } = useWebSocket({
@@ -109,8 +111,6 @@ const fetchStatus = async () => {
   try {
     const response = await $fetch('/api/status')
     status.value = response as typeof status.value
-    isRunning.value = (response as any).isActive
-    asrIsRunning.value = (response as any).source === 'asr'
   } catch (error) {
     console.error('Failed to fetch status:', error)
   }
@@ -160,29 +160,24 @@ const handleClear = async () => {
   }
 }
 
-// ASR 控制
-const handleASRStart = async (config: { provider: string; model: string; source: string; streamUrl?: string }) => {
+// ASR 控制 — 保存 source 配置
+const handleSourceSave = (config: { source: string; streamUrl?: string; overlapSec?: number; memoryChunks?: number }) => {
+  asrSourceConfig.value = config
+}
+
+// ASR 控制 — 启动
+const handleASRStart = async (config: { provider: string; model: string }) => {
   asrIsLoading.value = true
   try {
-    const response = await $fetch<{ success: boolean; spawned?: boolean }>('/api/asr/start', {
+    const fullConfig = {
+      ...config,
+      ...asrSourceConfig.value,
+    }
+    await $fetch('/api/asr/start', {
       method: 'POST',
-      body: config
+      body: fullConfig
     })
 
-    // 如果 spawn 了新进程，等待服务就绪
-    if (response.spawned) {
-      for (let i = 0; i < 60; i++) {
-        await new Promise(r => setTimeout(r, 2000))
-        try {
-          const health = await $fetch<{ status: string }>('/api/asr/service-health')
-          if (health.status === 'ok') break
-        } catch {
-          // health 请求失败，继续等待
-        }
-      }
-    }
-
-    asrIsRunning.value = true
     await fetchStatus()
     asrPanelRef.value?.handleStartSuccess()
   } catch (error: any) {
@@ -198,7 +193,6 @@ const handleASRStop = async () => {
   try {
     asrPanelRef.value?.stopCapture()
     await $fetch('/api/asr/stop', { method: 'POST' })
-    asrIsRunning.value = false
     await fetchStatus()
   } catch (error) {
     console.error('Failed to stop ASR:', error)
@@ -206,6 +200,9 @@ const handleASRStop = async () => {
     asrIsLoading.value = false
   }
 }
+
+// 测试面板折叠状态
+const devToolsOpen = ref(false)
 
 // 当前延迟值
 const currentDelay = computed(() => status.value?.config?.optimizationDelay ?? 2000)
@@ -258,14 +255,14 @@ onUnmounted(() => {
             </svg>
           </div>
           <div class="logo-text">
-            <span class="logo-title">TRANSCODER</span>
-            <span class="logo-subtitle">CONTROL CENTER</span>
+            <span class="logo-title">转录器</span>
+            <span class="logo-subtitle">控制中心</span>
           </div>
         </div>
 
         <div class="header-right">
           <div class="time-display">
-            <span class="time-label">SYS TIME</span>
+            <span class="time-label">系统时间</span>
             <span class="time-value">{{ formattedTime }}</span>
           </div>
 
@@ -281,17 +278,17 @@ onUnmounted(() => {
       <!-- Status bar -->
       <div class="status-bar">
         <div class="status-item">
-          <span class="status-dot" :class="{ active: isRunning || asrIsRunning }"></span>
-          <span class="status-text">{{ (isRunning || asrIsRunning) ? 'BROADCASTING' : 'STANDBY' }}</span>
+          <span class="status-dot" :class="{ active: isRunning }"></span>
+          <span class="status-text">{{ isRunning ? '广播中' : '待机' }}</span>
         </div>
         <div class="status-divider"></div>
         <div class="status-item">
-          <span class="status-label">CONN</span>
+          <span class="status-label">连接</span>
           <span class="status-value">{{ status?.connectionCount ?? 0 }}</span>
         </div>
         <div class="status-divider"></div>
         <div class="status-item">
-          <span class="status-label">SUBS</span>
+          <span class="status-label">字幕</span>
           <span class="status-value">{{ status?.subtitleCount ?? 0 }}</span>
         </div>
       </div>
@@ -300,185 +297,205 @@ onUnmounted(() => {
     <!-- 主内容 -->
     <main class="control-main">
       <div class="control-grid">
-        <!-- 控制面板 -->
-        <AdminControlPanel
-          :is-running="isRunning"
-          :is-loading="isLoading"
-          :current-delay="currentDelay"
-          @start="handleStart"
-          @stop="handleStop"
-          @clear="handleClear"
-        />
-
-        <!-- ASR 控制面板 -->
+        <!-- ASR 控制面板 (Stream Source) -->
         <AdminASRControlPanel
           ref="asrPanelRef"
-          :is-running="asrIsRunning"
-          :is-loading="asrIsLoading"
+          :active-source="asrSourceConfig.source"
           :ws-send="wsSend"
+          @save="handleSourceSave"
+        />
+
+        <!-- ASR 状态面板 -->
+        <AdminModelStatusPanel
+          :is-loading="asrIsLoading"
           @start="handleASRStart"
           @stop="handleASRStop"
         />
 
-        <!-- 模型状态面板 -->
-        <AdminModelStatusPanel />
+        <!-- 开发测试工具（折叠） -->
+        <div class="dev-tools-section">
+          <button class="dev-tools-toggle" @click="devToolsOpen = !devToolsOpen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="toggle-icon">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            <span class="toggle-title">开发工具</span>
+            <svg
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              class="toggle-arrow" :class="{ open: devToolsOpen }"
+            >
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
 
-        <!-- WS 测试面板 -->
-        <div class="ws-test-panel">
-          <div class="panel-header">
-            <div class="panel-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-              </svg>
-            </div>
-            <span class="panel-title">WS EVENT TEST</span>
-          </div>
+          <div class="dev-tools-content" v-show="devToolsOpen">
+            <!-- 模拟控制 -->
+            <AdminControlPanel
+              :is-running="isRunning"
+              :is-loading="isLoading"
+              :current-delay="currentDelay"
+              @start="handleStart"
+              @stop="handleStop"
+              @clear="handleClear"
+            />
 
-          <div class="ws-test-form">
-            <!-- 消息类型选择 -->
-            <div class="form-row">
-              <label class="form-label">MESSAGE TYPE</label>
-              <div class="type-grid">
+            <!-- WS 测试面板 -->
+            <div class="ws-test-panel">
+              <div class="panel-header">
+                <div class="panel-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                  </svg>
+                </div>
+                <span class="panel-title">WS 事件测试</span>
+              </div>
+
+              <div class="ws-test-form">
+                <!-- 消息类型选择 -->
+                <div class="form-row">
+                  <label class="form-label">消息类型</label>
+                  <div class="type-grid">
+                    <button
+                      v-for="msg in wsMessageTypes"
+                      :key="msg.value"
+                      class="type-btn"
+                      :class="{ active: wsMessageType === msg.value }"
+                      @click="wsMessageType = msg.value"
+                    >
+                      <span class="type-name">{{ msg.label }}</span>
+                      <span class="type-desc">{{ msg.desc }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 动态表单字段 -->
+                <div class="form-fields" v-if="wsMessageType !== 'clear'">
+                  <!-- current 字段 -->
+                  <template v-if="wsMessageType === 'current'">
+                    <div class="form-row">
+                      <label class="form-label">中文文本</label>
+                      <input
+                        v-model="formFields.text"
+                        type="text"
+                        class="form-input"
+                        placeholder="输入当前中文..."
+                      />
+                    </div>
+
+                    <div class="form-row">
+                      <label class="form-label">英文翻译</label>
+                      <input
+                        v-model="formFields.enText"
+                        type="text"
+                        class="form-input"
+                        placeholder="输入英文翻译..."
+                      />
+                    </div>
+
+                    <div class="form-row">
+                      <label class="form-label">中文版本号</label>
+                      <input
+                        v-model.number="formFields.version"
+                        type="number"
+                        class="form-input"
+                        placeholder="输入版本号..."
+                      />
+                    </div>
+
+                    <div class="form-row">
+                      <label class="form-label">英文版本号</label>
+                      <input
+                        v-model.number="formFields.enVersion"
+                        type="number"
+                        class="form-input"
+                        placeholder="输入英文版本号..."
+                      />
+                    </div>
+                  </template>
+
+                  <!-- confirmed 字段 -->
+                  <template v-if="wsMessageType === 'confirmed'">
+                    <div class="form-row">
+                      <label class="form-label">中文文本</label>
+                      <input
+                        v-model="formFields.text"
+                        type="text"
+                        class="form-input"
+                        placeholder="输入确认的中文..."
+                      />
+                    </div>
+
+                    <div class="form-row">
+                      <label class="form-label">优化后的中文</label>
+                      <input
+                        v-model="formFields.optimizedText"
+                        type="text"
+                        class="form-input"
+                        placeholder="输入优化后的中文（可选）..."
+                      />
+                    </div>
+
+                    <div class="form-row">
+                      <label class="form-label">英文翻译</label>
+                      <input
+                        v-model="formFields.enText"
+                        type="text"
+                        class="form-input"
+                        placeholder="输入英文翻译..."
+                      />
+                    </div>
+
+                    <div class="form-row">
+                      <label class="form-label">字幕 ID（可选）</label>
+                      <input
+                        v-model="formFields.subtitleId"
+                        type="text"
+                        class="form-input"
+                        placeholder="留空自动生成"
+                      />
+                    </div>
+                  </template>
+                </div>
+
+                <!-- clear 提示 -->
+                <div class="clear-hint" v-if="wsMessageType === 'clear'">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>点击发送将清空所有字幕</span>
+                </div>
+
                 <button
-                  v-for="msg in wsMessageTypes"
-                  :key="msg.value"
-                  class="type-btn"
-                  :class="{ active: wsMessageType === msg.value }"
-                  @click="wsMessageType = msg.value"
+                  class="send-btn"
+                  :disabled="wsSendLoading"
+                  @click="handleSendWsMessage"
                 >
-                  <span class="type-name">{{ msg.label }}</span>
-                  <span class="type-desc">{{ msg.desc }}</span>
+                  <svg v-if="wsSendLoading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  </svg>
+                  <span>发送</span>
                 </button>
               </div>
-            </div>
 
-            <!-- 动态表单字段 -->
-            <div class="form-fields" v-if="wsMessageType !== 'clear'">
-              <!-- current 字段 -->
-              <template v-if="wsMessageType === 'current'">
-                <div class="form-row">
-                  <label class="form-label">中文文本</label>
-                  <input
-                    v-model="formFields.text"
-                    type="text"
-                    class="form-input"
-                    placeholder="输入当前中文..."
-                  />
+              <div class="ws-log" v-if="wsSendLog.length > 0">
+                <div class="log-header">发送日志</div>
+                <div class="log-list">
+                  <div
+                    v-for="(log, index) in wsSendLog.slice(0, 10)"
+                    :key="index"
+                    class="log-item"
+                    :class="{ success: log.success, error: !log.success }"
+                  >
+                    <span class="log-time">{{ log.time }}</span>
+                    <span class="log-type">[{{ log.type }}]</span>
+                    <span class="log-content">{{ log.content }}</span>
+                  </div>
                 </div>
-
-                <div class="form-row">
-                  <label class="form-label">英文翻译</label>
-                  <input
-                    v-model="formFields.enText"
-                    type="text"
-                    class="form-input"
-                    placeholder="输入英文翻译..."
-                  />
-                </div>
-
-                <div class="form-row">
-                  <label class="form-label">中文版本号</label>
-                  <input
-                    v-model.number="formFields.version"
-                    type="number"
-                    class="form-input"
-                    placeholder="输入版本号..."
-                  />
-                </div>
-
-                <div class="form-row">
-                  <label class="form-label">英文版本号</label>
-                  <input
-                    v-model.number="formFields.enVersion"
-                    type="number"
-                    class="form-input"
-                    placeholder="输入英文版本号..."
-                  />
-                </div>
-              </template>
-
-              <!-- confirmed 字段 -->
-              <template v-if="wsMessageType === 'confirmed'">
-                <div class="form-row">
-                  <label class="form-label">中文文本</label>
-                  <input
-                    v-model="formFields.text"
-                    type="text"
-                    class="form-input"
-                    placeholder="输入确认的中文..."
-                  />
-                </div>
-
-                <div class="form-row">
-                  <label class="form-label">优化后的中文</label>
-                  <input
-                    v-model="formFields.optimizedText"
-                    type="text"
-                    class="form-input"
-                    placeholder="输入优化后的中文（可选）..."
-                  />
-                </div>
-
-                <div class="form-row">
-                  <label class="form-label">英文翻译</label>
-                  <input
-                    v-model="formFields.enText"
-                    type="text"
-                    class="form-input"
-                    placeholder="输入英文翻译..."
-                  />
-                </div>
-
-                <div class="form-row">
-                  <label class="form-label">字幕 ID（可选）</label>
-                  <input
-                    v-model="formFields.subtitleId"
-                    type="text"
-                    class="form-input"
-                    placeholder="留空自动生成"
-                  />
-                </div>
-              </template>
-            </div>
-
-            <!-- clear 提示 -->
-            <div class="clear-hint" v-if="wsMessageType === 'clear'">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              <span>点击发送将清空所有字幕</span>
-            </div>
-
-            <button
-              class="send-btn"
-              :disabled="wsSendLoading"
-              @click="handleSendWsMessage"
-            >
-              <svg v-if="wsSendLoading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-              </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="22" y1="2" x2="11" y2="13"/>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-              </svg>
-              <span>SEND</span>
-            </button>
-          </div>
-
-          <div class="ws-log" v-if="wsSendLog.length > 0">
-            <div class="log-header">SEND LOG</div>
-            <div class="log-list">
-              <div
-                v-for="(log, index) in wsSendLog.slice(0, 10)"
-                :key="index"
-                class="log-item"
-                :class="{ success: log.success, error: !log.success }"
-              >
-                <span class="log-time">{{ log.time }}</span>
-                <span class="log-type">[{{ log.type }}]</span>
-                <span class="log-content">{{ log.content }}</span>
               </div>
             </div>
           </div>
@@ -496,7 +513,7 @@ onUnmounted(() => {
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
               </svg>
             </div>
-            <span class="panel-title">QUICK ACCESS</span>
+            <span class="panel-title">快捷入口</span>
           </div>
 
           <div class="quick-actions">
@@ -509,7 +526,7 @@ onUnmounted(() => {
                 </svg>
               </div>
               <div class="action-content">
-                <span class="action-title">FRONTEND</span>
+                <span class="action-title">前台展示</span>
                 <span class="action-desc">打开前台展示页</span>
               </div>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-arrow">
@@ -538,24 +555,24 @@ onUnmounted(() => {
                 <line x1="1" y1="14" x2="4" y2="14"/>
               </svg>
             </div>
-            <span class="panel-title">SYSTEM INFO</span>
+            <span class="panel-title">系统信息</span>
           </div>
 
           <div class="system-info-grid">
             <div class="info-row">
-              <span class="info-label">VERSION</span>
+              <span class="info-label">版本</span>
               <span class="info-value">1.0.0</span>
             </div>
             <div class="info-row">
-              <span class="info-label">UPTIME</span>
+              <span class="info-label">运行时间</span>
               <span class="info-value">--:--:--</span>
             </div>
             <div class="info-row">
-              <span class="info-label">MODE</span>
-              <span class="info-value highlight">SIMULATION</span>
+              <span class="info-label">模式</span>
+              <span class="info-value highlight">模拟</span>
             </div>
             <div class="info-row">
-              <span class="info-label">LATENCY</span>
+              <span class="info-label">延迟</span>
               <span class="info-value">&lt;500ms</span>
             </div>
           </div>
@@ -566,7 +583,7 @@ onUnmounted(() => {
     <!-- 底部 -->
     <footer class="control-footer">
       <div class="footer-content">
-        <span class="footer-text">TRANSCODER v1.0 // REAL-TIME TRANSCRIPTION SYSTEM</span>
+        <span class="footer-text">转录器 v1.0 // 实时转录系统</span>
         <div class="footer-indicator">
           <span class="indicator-dot"></span>
           <span class="indicator-dot"></span>
@@ -687,11 +704,10 @@ onUnmounted(() => {
 }
 
 .logo-subtitle {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.15em;
   color: rgba(148, 163, 184, 0.8);
-  text-transform: uppercase;
 }
 
 .header-right {
@@ -707,9 +723,9 @@ onUnmounted(() => {
 }
 
 .time-label {
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
-  color: rgba(148, 163, 184, 0.6);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: rgba(148, 163, 184, 0.7);
 }
 
 .time-value {
@@ -798,9 +814,9 @@ onUnmounted(() => {
 }
 
 .status-label {
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
-  color: rgba(148, 163, 184, 0.6);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: rgba(148, 163, 184, 0.7);
 }
 
 .status-value {
@@ -993,13 +1009,82 @@ onUnmounted(() => {
   color: #22d3ee;
 }
 
+/* Dev Tools Section */
+.dev-tools-section {
+  grid-column: span 2;
+}
+
+@media (max-width: 1024px) {
+  .dev-tools-section {
+    grid-column: span 1;
+  }
+}
+
+.dev-tools-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px dashed rgba(56, 189, 248, 0.25);
+  border-radius: 12px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.dev-tools-toggle:hover {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #94a3b8;
+}
+
+.toggle-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toggle-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  flex: 1;
+}
+
+.toggle-arrow {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+.dev-tools-content {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .dev-tools-content {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* WS Test Panel */
 .ws-test-panel {
   grid-column: span 2;
 }
 
 @media (max-width: 1024px) {
-  .ws-test-panel {
+  .dev-tools-content .ws-test-panel {
     grid-column: span 1;
   }
 }
@@ -1017,9 +1102,9 @@ onUnmounted(() => {
 }
 
 .form-label {
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  color: rgba(148, 163, 184, 0.7);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: rgba(148, 163, 184, 0.8);
 }
 
 .form-input {
@@ -1090,8 +1175,8 @@ onUnmounted(() => {
 }
 
 .type-desc {
-  font-size: 0.6rem;
-  color: rgba(148, 163, 184, 0.6);
+  font-size: 0.7rem;
+  color: rgba(148, 163, 184, 0.7);
 }
 
 .type-btn.active .type-name {
@@ -1169,9 +1254,9 @@ onUnmounted(() => {
 }
 
 .log-header {
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  color: rgba(148, 163, 184, 0.6);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: rgba(148, 163, 184, 0.7);
   margin-bottom: 0.75rem;
 }
 
@@ -1204,7 +1289,7 @@ onUnmounted(() => {
 
 .log-time {
   color: rgba(148, 163, 184, 0.5);
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   flex-shrink: 0;
 }
 
@@ -1241,9 +1326,9 @@ onUnmounted(() => {
 }
 
 .footer-text {
-  font-size: 0.65rem;
-  letter-spacing: 0.2em;
-  color: rgba(148, 163, 184, 0.5);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: rgba(148, 163, 184, 0.6);
 }
 
 .footer-indicator {
