@@ -207,7 +207,7 @@ const isMicMonitoring = ref(false)
 const micVolumeWatcher = ref<WatchStopHandle | null>(null)
 const audioCapture = shallowRef<ReturnType<typeof useAudioCapture> | null>(null)
 
-async function startMicCapture() {
+async function startMicCapture(sendAudio = true) {
   if (isMicMonitoring.value) return
   const capture = useAudioCapture({
     deviceId: selectedDeviceId.value || undefined,
@@ -215,9 +215,9 @@ async function startMicCapture() {
     noiseSuppression: advancedSettings.value.noiseSuppression,
     targetSampleRate: advancedSettings.value.targetSampleRate,
     chunkDurationMs: advancedSettings.value.chunkDurationMs,
-    onAudioChunk: (base64Pcm) => {
+    onAudioChunk: sendAudio ? (base64Pcm) => {
       wsSend({ type: 'audio', data: base64Pcm })
-    },
+    } : undefined,
     onError: (msg) => {
       setStatus(msg, 'error')
     }
@@ -393,8 +393,10 @@ watch(source, (val) => {
   statusMessage.value = ''
   stopMicCapture()
   micWaveform.stopAnimation()
-  nextTick(() => {
-    if (val === 'file') {
+  nextTick(async () => {
+    if (val === 'mic') {
+      await startMicCapture(false)
+    } else if (val === 'file') {
       micWaveform.drawRealtimeWaveform(null)
       if (filePlayer.waveformPeaks.value) {
         fileWaveform.drawStaticWaveform(filePlayer.waveformPeaks.value, 0, fileVolume.value)
