@@ -6,12 +6,6 @@ definePageMeta({
 // 状态
 const isRunning = ref(false)
 const isLoading = ref(false)
-const status = ref<{
-  isActive: boolean
-  source: string | null
-  connectionCount: number
-  subtitleCount: number
-} | null>(null)
 
 // 转录状态（从 TranscriptionControlPanel 获取）
 const transcriptionConnectionCount = ref(0)
@@ -111,8 +105,7 @@ const handleSendWsMessage = async () => {
 // 获取状态
 const fetchStatus = async () => {
   try {
-    const response = await $fetch('/api/status')
-    status.value = response as typeof status.value
+    await $fetch('/api/status')
   } catch (error) {
     console.error('Failed to fetch status:', error)
   }
@@ -168,7 +161,7 @@ const handleClear = async () => {
 const devToolsOpen = ref(false)
 
 // 当前延迟值
-const currentDelay = computed(() => status.value?.config?.optimizationDelay ?? 2000)
+const currentDelay = ref(2000)
 
 // 当前时间
 const currentTime = ref(new Date())
@@ -452,8 +445,6 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 状态面板 -->
-        <AdminStatusPanel :status="status" />
       </div>
     </main>
 
@@ -836,15 +827,6 @@ onUnmounted(() => {
 }
 
 /* WS Test Panel */
-.ws-test-panel {
-  grid-column: span 2;
-}
-
-@media (max-width: 1024px) {
-  .dev-tools-content .ws-test-panel {
-    grid-column: span 1;
-  }
-}
 
 .ws-test-form {
   display: flex;
