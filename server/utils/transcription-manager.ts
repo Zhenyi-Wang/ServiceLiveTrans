@@ -1,111 +1,40 @@
 import { WebSocket } from 'ws'
-import type { WSMessage, WSCurrentData, WSConfirmedData } from '../../types/websocket'
+import type { WSMessage, WSCurrentData, WSConfirmedData, TranscriptionStatusData } from '../../types/websocket'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
-import { stopSimulation } from './simulator'
 import { processAI } from './ai-processor'
-import type { AudioSource, AudioSourceStatus } from './audio-source/base'
-import { FLVSource } from './audio-source/flv'
+import type { AudioSource } from './audio-source/base'
 
-type SourceType = 'mic' | 'file' | 'stream'
+export type SourceType = 'mic' | 'file' | 'stream'
 
-interface StartConfig {
+interface BridgeConfig {
+  url: string
   provider: string
   model: string
-  source: SourceType
-  streamUrl?: string
-  overlapSec?: number
-  memoryChunks?: number
+  overlap_sec?: number
+  memory_chunks?: number
 }
-
-interface TranscriptionStatus {
-  state: 'idle' | 'starting' | 'running' | 'error'
-  source: SourceType | null
-  asrConnected: boolean
-  asrProvider: string | null
-  sourceStatus?: AudioSourceStatus
-  error?: string
-  uptime: number
-}
-
-const DEFAULT_FLV_URL = process.env.FLV_STREAM_URL || 'http://mini:8080/live/livestream.flv'
 
 // ASR Bridge 内部状态
 let ws: WebSocket | null = null
 let bridgeStatus: 'disconnected' | 'connecting' | 'connected' = 'disconnected'
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-let bridgeConfig: { url: string; provider: string; model: string } | null = null
-let onReadyCallback: (() => void) | null = null
+let bridgeConfig: BridgeConfig | null = null
+let readyCallback: (() => void) | null = null
+let bridgeDisconnectCallback: (() => void) | null = null
 let partialVersion = 0
 
-// 音频源状态
+// 音频源（仅 stream 源由后端管理）
 let audioSource: AudioSource | null = null
-let currentSource: SourceType | null = null
 let asrReady = false
 let pendingAudio: Buffer[] = []
 let startTime: number | null = null
-let stateCheckInterval: ReturnType<typeof setInterval> | null = null
-let managerState: 'idle' | 'starting' | 'running' | 'error' = 'idle'
 
-// === ASR Bridge (内部) ===
+// 由 Orchestrator 管理的公共状态
+let managerState: 'idle' | 'starting' | 'running' | 'stopping' | 'error' = 'idle'
+let currentSource: SourceType | null = null
 
-function bridgeConnect(): void {
-  if (!bridgeConfig || bridgeStatus === 'connected') return
-  bridgeStatus = 'connecting'
-
-  try {
-    ws = new WebSocket(bridgeConfig.url)
-
-    ws.on('open', () => {
-      bridgeStatus = 'connected'
-      console.log(`[TranscriptionManager] ASR 已连接: ${bridgeConfig!.url}`)
-
-      ws!.send(JSON.stringify({
-        type: 'config',
-        provider: bridgeConfig!.provider,
-        model: bridgeConfig!.model
-      }))
-    })
-
-    ws.on('message', (data: Buffer) => {
-      try {
-        const msg = JSON.parse(data.toString())
-        if (msg.type === 'partial' || msg.type === 'final') {
-          processResult(msg)
-        } else if (msg.type === 'error') {
-          console.error(`[TranscriptionManager] Python 错误: ${msg.message}`)
-        } else if (msg.type === 'loading') {
-          console.log('[TranscriptionManager] 模型加载中...')
-        } else if (msg.type === 'ready') {
-          console.log('[TranscriptionManager] 模型就绪')
-          asrReady = true
-          onReadyCallback?.()
-        } else if (msg.type === 'unloaded') {
-          console.log('[TranscriptionManager] 模型已卸载')
-        }
-      } catch (e) {
-        console.error('[TranscriptionManager] 消息解析失败:', e)
-      }
-    })
-
-    ws.on('close', () => {
-      bridgeStatus = 'disconnected'
-      asrReady = false
-      console.log('[TranscriptionManager] ASR 连接断开')
-      scheduleBridgeReconnect()
-    })
-
-    ws.on('error', (err: Error) => {
-      bridgeStatus = 'disconnected'
-      asrReady = false
-      console.error('[TranscriptionManager] ASR 连接错误:', err.message)
-    })
-  } catch (e) {
-    bridgeStatus = 'disconnected'
-    console.error('[TranscriptionManager] 创建连接失败:', e)
-    scheduleBridgeReconnect()
-  }
-}
+// === ASR Bridge ===
 
 function scheduleBridgeReconnect(): void {
   if (reconnectTimer) return
@@ -113,19 +42,6 @@ function scheduleBridgeReconnect(): void {
     reconnectTimer = null
     bridgeConnect()
   }, 3000)
-}
-
-function bridgeDisconnect(): void {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer)
-    reconnectTimer = null
-  }
-  if (ws) {
-    ws.close()
-    ws = null
-  }
-  bridgeStatus = 'disconnected'
-  asrReady = false
 }
 
 function sendAudioChunkToASR(base64Pcm: string): boolean {
@@ -150,7 +66,6 @@ function processResult(result: { type: string; text: string; language: string })
       enVersion: 0
     }
     broadcast({ type: 'current', data })
-
     transcriptionState.currentSubtitle = {
       text: result.text,
       enText: '',
@@ -161,7 +76,6 @@ function processResult(result: { type: string; text: string; language: string })
   } else if (result.type === 'final') {
     partialVersion = 0
     const id = `asr-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
-
     const data: WSConfirmedData = {
       id,
       text: result.text,
@@ -170,14 +84,12 @@ function processResult(result: { type: string; text: string; language: string })
     }
     broadcast({ type: 'confirmed', data })
     broadcast({ type: 'current', data: { text: '', enText: '', version: 0, enVersion: 0 } })
-
     transcriptionState.currentSubtitle = null
     transcriptionState.confirmedSubtitles.push({
       id,
       text: result.text,
       timestamp: Date.now()
     })
-
     processAI(result.text).then(ai => {
       broadcast({ type: 'ai-processed', data: { id, optimizedText: ai.optimizedText, enText: ai.enText } })
       const subtitle = transcriptionState.confirmedSubtitles.find(s => s.id === id)
@@ -189,7 +101,7 @@ function processResult(result: { type: string; text: string; language: string })
   }
 }
 
-// === 音频源回调 ===
+// === 音频源回调（仅 stream 源） ===
 
 function _onAudio(pcm: Buffer): void {
   if (!asrReady) {
@@ -205,141 +117,120 @@ function _onAudio(pcm: Buffer): void {
 function _onError(error: Error): void {
   console.error(`[TranscriptionManager] 音频源错误: ${error.message}`)
   managerState = 'error'
-  _broadcastStatus()
+  broadcastStatus()
 }
 
-function _broadcastStatus(): void {
-  broadcast({
-    type: 'status',
-    data: {
-      state: managerState,
-      source: currentSource,
-      error: undefined,
-      reconnectCount: audioSource?.getStatus().reconnectCount
-    }
-  })
+// === 状态广播 ===
+
+export function broadcastStatus(): void {
+  const sourceLabel = currentSource === 'mic' ? '麦克风' : currentSource === 'file' ? '文件' : currentSource === 'stream' ? '直播流' : ''
+  const sourceStatus = audioSource?.getStatus()
+  const audioDetail = sourceStatus
+    ? (sourceStatus.state === 'running' ? '运行中' : sourceStatus.state === 'connecting' ? '连接中' : sourceStatus.state === 'error' ? '错误' : undefined)
+    : (managerState === 'running' && currentSource ? '运行中' : undefined)
+
+  const data: TranscriptionStatusData = {
+    state: managerState,
+    audio: {
+      active: currentSource !== null,
+      label: sourceLabel,
+      detail: audioDetail
+    },
+    recognition: {
+      active: bridgeStatus === 'connected' && asrReady,
+      detail: bridgeStatus === 'connected' ? (asrReady ? '运行中' : '加载中') : '已停止'
+    },
+    uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
+  }
+  broadcast({ type: 'transcription-status', data })
 }
 
-// === 公开 API ===
+// === 公开 API（供 Orchestrator 调用） ===
 
 export const transcriptionManager = {
-  async start(config: StartConfig): Promise<{ success: boolean }> {
-    if (managerState !== 'idle') {
-      return { success: false }
-    }
+  connectBridge(config: BridgeConfig): void {
+    if (bridgeStatus === 'connected') return
+    bridgeConfig = config
+    bridgeStatus = 'connecting'
 
-    managerState = 'starting'
-    currentSource = config.source
-    startTime = Date.now()
-    _broadcastStatus()
+    try {
+      ws = new WebSocket(bridgeConfig.url)
 
-    stopSimulation()
+      ws.on('open', () => {
+        bridgeStatus = 'connected'
+        console.log(`[TranscriptionManager] ASR 已连接: ${bridgeConfig!.url}`)
+        ws!.send(JSON.stringify({
+          type: 'config',
+          provider: bridgeConfig!.provider,
+          model: bridgeConfig!.model,
+          ...(bridgeConfig!.overlap_sec !== undefined ? { overlap_sec: bridgeConfig!.overlap_sec } : {}),
+          ...(bridgeConfig!.memory_chunks !== undefined ? { memory_chunks: bridgeConfig!.memory_chunks } : {}),
+        }))
+      })
 
-    // 连接 ASR Bridge
-    const asrUrl = process.env.ASR_WS_URL || 'ws://localhost:9900'
-    bridgeConfig = {
-      url: asrUrl,
-      provider: config.provider,
-      model: config.model,
-      ...(config.overlapSec !== undefined ? { overlap_sec: config.overlapSec } : {}),
-      ...(config.memoryChunks !== undefined ? { memory_chunks: config.memoryChunks } : {}),
-    }
-
-    transcriptionState.isActive = true
-    transcriptionState.source = 'asr'
-
-    // ASR 就绪回调（在 bridgeConnect 之前设置）
-    onReadyCallback = () => {
-      // 发送缓存的音频
-      for (const pcm of pendingAudio) {
-        sendAudioChunkToASR(pcm.toString('base64'))
-      }
-      pendingAudio = []
-
-      // mic/file 无服务端音频源，直接进入 running
-      if (!audioSource) {
-        managerState = 'running'
-        _broadcastStatus()
-      }
-      // stream：由 stateCheckInterval 检测 audioSource 状态后进入 running
-    }
-
-    bridgeConnect()
-
-    // stream 源：创建 FLVSource
-    if (config.source === 'stream') {
-      try {
-        const url = config.streamUrl || DEFAULT_FLV_URL
-        audioSource = new FLVSource(url)
-        audioSource.onAudio(_onAudio)
-        audioSource.onError(_onError)
-        await audioSource.start()
-
-        stateCheckInterval = setInterval(() => {
-          if (managerState === 'idle' || !audioSource) {
-            clearInterval(stateCheckInterval!)
-            stateCheckInterval = null
-            return
+      ws.on('message', (data: Buffer) => {
+        try {
+          const msg = JSON.parse(data.toString())
+          if (msg.type === 'partial' || msg.type === 'final') {
+            processResult(msg)
+          } else if (msg.type === 'error') {
+            console.error(`[TranscriptionManager] Python 错误: ${msg.message}`)
+          } else if (msg.type === 'loading') {
+            console.log('[TranscriptionManager] 模型加载中...')
+          } else if (msg.type === 'ready') {
+            console.log('[TranscriptionManager] 模型就绪')
+            asrReady = true
+            readyCallback?.()
+          } else if (msg.type === 'unloaded') {
+            console.log('[TranscriptionManager] 模型已卸载')
           }
-          const sourceStatus = audioSource.getStatus()
-          if (sourceStatus.state === 'running' && asrReady) {
-            managerState = 'running'
-          } else if (sourceStatus.state === 'connecting') {
-            managerState = 'starting'
-          } else if (sourceStatus.state === 'error') {
-            managerState = 'error'
-          }
-        }, 2000)
-      } catch (e) {
-        console.error(`[TranscriptionManager] 音频源启动失败: ${e}`)
-        audioSource?.stop()
-        audioSource = null
-        bridgeDisconnect()
+        } catch (e) {
+          console.error('[TranscriptionManager] 消息解析失败:', e)
+        }
+      })
+
+      ws.on('close', () => {
+        bridgeStatus = 'disconnected'
         asrReady = false
-        pendingAudio = []
-        onReadyCallback = null
-        bridgeConfig = null
-        transcriptionState.isActive = false
-        transcriptionState.source = null
-        managerState = 'idle'
-        currentSource = null
-        startTime = null
-        _broadcastStatus()
-        return { success: false }
-      }
-    }
+        console.log('[TranscriptionManager] ASR 连接断开')
+        bridgeDisconnectCallback?.()
+      })
 
-    return { success: true }
+      ws.on('error', (err: Error) => {
+        bridgeStatus = 'disconnected'
+        asrReady = false
+        console.error('[TranscriptionManager] ASR 连接错误:', err.message)
+      })
+    } catch (e) {
+      bridgeStatus = 'disconnected'
+      console.error('[TranscriptionManager] 创建连接失败:', e)
+      scheduleBridgeReconnect()
+    }
   },
 
-  stop(): void {
-    if (managerState === 'idle') return
-
-    managerState = 'idle'
-    _broadcastStatus()
-
-    audioSource?.stop()
-    audioSource = null
-    currentSource = null
-
-    if (stateCheckInterval) {
-      clearInterval(stateCheckInterval)
-      stateCheckInterval = null
+  disconnectBridge(): void {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
     }
-
-    bridgeDisconnect()
-
+    if (ws) {
+      ws.close()
+      ws = null
+    }
+    bridgeStatus = 'disconnected'
     asrReady = false
-    pendingAudio = []
-    partialVersion = 0
-    onReadyCallback = null
-    bridgeConfig = null
-    startTime = null
+  },
 
-    transcriptionState.isActive = false
-    transcriptionState.source = null
-    transcriptionState.currentSubtitle = null
-    transcriptionState.confirmedSubtitles = []
+  onReady(callback: () => void): void {
+    readyCallback = callback
+  },
+
+  clearReadyCallback(): void {
+    readyCallback = null
+  },
+
+  onBridgeDisconnect(callback: () => void): void {
+    bridgeDisconnectCallback = callback
   },
 
   sendAudioChunk(base64Pcm: string): boolean {
@@ -353,15 +244,67 @@ export const transcriptionManager = {
     return sendAudioChunkToASR(base64Pcm)
   },
 
-  getStatus(): TranscriptionStatus {
-    return {
-      state: managerState,
-      source: currentSource,
-      asrConnected: bridgeStatus === 'connected',
-      asrProvider: bridgeConfig?.provider ?? null,
-      sourceStatus: audioSource?.getStatus(),
-      uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
-    }
+  isBridgeConnected(): boolean {
+    return bridgeStatus === 'connected'
+  },
+
+  isASRReady(): boolean {
+    return asrReady
+  },
+
+  getBridgeStatus(): string {
+    return bridgeStatus
+  },
+
+  setStreamSource(source: AudioSource): void {
+    audioSource = source
+    source.onAudio(_onAudio)
+    source.onError(_onError)
+  },
+
+  stopStreamSource(): void {
+    audioSource?.stop()
+    audioSource = null
+  },
+
+  hasStreamSource(): boolean {
+    return audioSource !== null
+  },
+
+  setManagerState(state: typeof managerState): void {
+    managerState = state
+    broadcastStatus()
+  },
+
+  setSource(source: SourceType | null): void {
+    currentSource = source
+  },
+
+  getSource(): SourceType | null {
+    return currentSource
+  },
+
+  getState(): typeof managerState {
+    return managerState
+  },
+
+  setStartTime(): void {
+    startTime = Date.now()
+  },
+
+  resetState(): void {
+    pendingAudio = []
+    partialVersion = 0
+    readyCallback = null
+    bridgeDisconnectCallback = null
+    bridgeConfig = null
+    startTime = null
+    currentSource = null
+    managerState = 'idle'
+    transcriptionState.isActive = false
+    transcriptionState.source = null
+    transcriptionState.currentSubtitle = null
+    transcriptionState.confirmedSubtitles = []
   },
 
   isActive(): boolean {
