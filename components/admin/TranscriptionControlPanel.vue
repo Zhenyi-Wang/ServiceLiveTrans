@@ -516,7 +516,7 @@ onUnmounted(() => {
         <div class="form-row">
           <label class="form-label">
             音量
-            <span class="volume-value">{{ gainToPercent(micVolume) }}</span>
+            <span class="volume-value"><ClientOnly>{{ gainToPercent(micVolume) }}</ClientOnly></span>
           </label>
           <input
             type="range" min="0" max="10" step="0.1"
@@ -574,7 +574,7 @@ onUnmounted(() => {
         <div class="form-row">
           <label class="form-label">
             音量
-            <span class="volume-value">{{ gainToPercent(fileVolume) }}</span>
+            <span class="volume-value"><ClientOnly>{{ gainToPercent(fileVolume) }}</ClientOnly></span>
           </label>
           <input
             type="range" min="0" max="10" step="0.1"
