@@ -52,6 +52,12 @@ pnpm typecheck   # vue-tsc 类型检查
 | prettier    | npx prettier --check . | 前端格式检查        |
 | vue-tsc     | npx vue-tsc --noEmit   | TypeScript 类型检查 |
 
+**提交前根据变更文件执行对应检查，确保 hooks 通过再 commit：**
+
+- 改了 `asr/` 下的 Python 文件 → `ruff check asr/` + `ruff format --check asr/` + `pyright`
+- 改了前端/TypeScript 文件 → `pnpm lint` + `pnpm format:check` + `pnpm typecheck`
+- 都改了 → 全部执行
+
 ## 技术栈
 
 - Nuxt 4 + Vue 3 + TypeScript

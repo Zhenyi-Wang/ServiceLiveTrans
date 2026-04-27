@@ -3,6 +3,7 @@ target-version = "py310"
 line-length = 120
 extend-exclude = [
     "asr/providers/gguf/qwen_asr_gguf",
+    "_archive",
     "node_modules",
     ".nuxt",
     ".output",
