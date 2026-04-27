@@ -4,19 +4,17 @@ import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
 import { stopSimulation } from './simulator'
 import type { TranscriptionProgressData } from '../../types/websocket'
+import type { ASRConfig } from '../../types/asr'
+import { asrConfigToSnake } from '../../types/asr'
 
 const DEFAULT_FLV_URL = process.env.FLV_STREAM_URL || 'http://mini:8080/live/livestream.flv'
 const ASR_WS_URL = process.env.ASR_WS_URL || 'ws://localhost:9900'
 
 type OrchestratorState = 'idle' | 'starting' | 'running' | 'stopping' | 'error'
 
-interface StartConfig {
+interface StartConfig extends ASRConfig {
   source: SourceType
   streamUrl?: string
-  provider?: string
-  model?: string
-  overlapSec?: number
-  memoryChunks?: number
 }
 
 let state: OrchestratorState = 'idle'
@@ -110,8 +108,7 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
       url: ASR_WS_URL,
       provider: config.provider || 'gguf',
       model: config.model || '',
-      ...(config.overlapSec !== undefined ? { overlap_sec: config.overlapSec } : {}),
-      ...(config.memoryChunks !== undefined ? { memory_chunks: config.memoryChunks } : {}),
+      ...asrConfigToSnake(config),
     })
 
     checkInterval = setInterval(() => {
@@ -302,7 +299,7 @@ export const orchestrator = {
     updateOverallState()
   },
 
-  async startRecognitionOnly(config: { provider?: string; model?: string; overlapSec?: number; memoryChunks?: number }): Promise<{ success: boolean; error?: string }> {
+  async startRecognitionOnly(config: ASRConfig): Promise<{ success: boolean; error?: string }> {
     if (transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady()) {
       return { success: false, error: '识别服务已在运行' }
     }

@@ -73,6 +73,7 @@ export interface TranscriptionStatusData {
   recognition: { active: boolean; detail?: string }
   error?: string
   uptime: number
+  asrConfig?: Record<string, unknown>
 }
 
 /**

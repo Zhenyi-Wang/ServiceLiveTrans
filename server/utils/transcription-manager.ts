@@ -1,18 +1,16 @@
 import { WebSocket } from 'ws'
 import type { WSMessage, WSCurrentData, WSConfirmedData, TranscriptionStatusData } from '../../types/websocket'
+import type { ASRConfigSnake } from '../../types/asr'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
 import { processAI } from './ai-processor'
+import { getASRConfig } from './asr-process'
 import type { AudioSource } from './audio-source/base'
 
 export type SourceType = 'mic' | 'stream'
 
-interface BridgeConfig {
+interface BridgeConfig extends ASRConfigSnake {
   url: string
-  provider: string
-  model: string
-  overlap_sec?: number
-  memory_chunks?: number
 }
 
 // ASR Bridge 内部状态
@@ -23,6 +21,16 @@ let bridgeConfig: BridgeConfig | null = null
 let readyCallback: (() => void) | null = null
 let bridgeDisconnectCallback: (() => void) | null = null
 let partialVersion = 0
+
+let cachedASRConfig: Record<string, unknown> | null = null
+
+async function refreshASRConfig(): Promise<void> {
+  try {
+    cachedASRConfig = await getASRConfig()
+  } catch {
+    cachedASRConfig = null
+  }
+}
 
 // 音频源（仅 stream 源由后端管理）
 let audioSource: AudioSource | null = null
@@ -141,7 +149,8 @@ export function getStatusData(): TranscriptionStatusData {
       active: bridgeStatus === 'connected' && asrReady,
       detail: bridgeStatus === 'connected' ? (asrReady ? '运行中' : '加载中') : '已停止'
     },
-    uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
+    uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
+    ...(cachedASRConfig ? { asrConfig: cachedASRConfig } : {}),
   }
 }
 
@@ -163,12 +172,12 @@ export const transcriptionManager = {
       ws.on('open', () => {
         bridgeStatus = 'connected'
         console.log(`[TranscriptionManager] ASR 已连接: ${bridgeConfig!.url}`)
+        const { url, ...asrFields } = bridgeConfig!
         ws!.send(JSON.stringify({
           type: 'config',
-          provider: bridgeConfig!.provider,
-          model: bridgeConfig!.model,
-          ...(bridgeConfig!.overlap_sec !== undefined ? { overlap_sec: bridgeConfig!.overlap_sec } : {}),
-          ...(bridgeConfig!.memory_chunks !== undefined ? { memory_chunks: bridgeConfig!.memory_chunks } : {}),
+          provider: asrFields.provider || 'gguf',
+          model: asrFields.model || '',
+          ...asrFields,
         }))
       })
 
@@ -185,6 +194,7 @@ export const transcriptionManager = {
             console.log('[TranscriptionManager] 模型就绪')
             asrReady = true
             readyCallback?.()
+            refreshASRConfig()
             while (pendingAudio.length > 0) {
               sendAudioChunkToASR(pendingAudio.shift()!.toString('base64'))
             }
@@ -199,6 +209,7 @@ export const transcriptionManager = {
       ws.on('close', () => {
         bridgeStatus = 'disconnected'
         asrReady = false
+        cachedASRConfig = null
         console.log('[TranscriptionManager] ASR 连接断开')
         bridgeDisconnectCallback?.()
       })

@@ -1,4 +1,5 @@
 import type { WSMessage, WSInitData, TranscriptionStatusData, TranscriptionProgressData } from '~/types/websocket'
+import type { ASRConfig } from '~/types/asr'
 
 interface TranscriptionAudioState {
   active: boolean
@@ -95,7 +96,7 @@ export function useTranscription() {
     }
   }
 
-  async function startTranscription(config: { source: string; streamUrl?: string; provider?: string; overlapSec?: number; memoryChunks?: number }) {
+  async function startTranscription(config: { source: string; streamUrl?: string } & ASRConfig) {
     try {
       await $fetch('/api/transcription/start', {
         method: 'POST',
@@ -133,7 +134,7 @@ export function useTranscription() {
     }
   }
 
-  async function startRecognitionOnly(config: { provider?: string; overlapSec?: number; memoryChunks?: number }) {
+  async function startRecognitionOnly(config: ASRConfig) {
     try {
       await $fetch('/api/transcription/recognition-start', {
         method: 'POST',

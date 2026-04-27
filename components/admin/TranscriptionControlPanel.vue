@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { WSMessage, AudioSourceCommandData, TranscriptionStatusData } from '~/types/websocket'
+import { asrConfigToCamel } from '~/types/asr'
+import type { ASRConfig } from '~/types/asr'
 
 const props = defineProps<{
   connectionCount: number
@@ -28,11 +30,14 @@ const { send: wsSend } = useWebSocket({
     }
     // 处理转录状态消息
     transcription.handleWSMessage(msg)
-    // 同步音频源类型
+    // 同步音频源类型和 ASR 配置
     if (msg.type === 'init' || msg.type === 'transcription-status') {
       const ts = msg.data as TranscriptionStatusData
       if (ts.source) {
         source.value = ts.source
+      }
+      if (ts.asrConfig) {
+        syncASRConfig(ts.asrConfig)
       }
     }
   }
@@ -63,7 +68,16 @@ const advancedSettings = ref({
   echoCancellation: true,
   noiseSuppression: true,
   overlapSec: 0.1,
-  memoryChunks: 2
+  memoryChunks: 2,
+  vadThreshold: 0.5,
+  vadMaxBufferSec: 10.0,
+  vadMinBufferSec: 0.5,
+  vadSilenceMs: 300,
+  temperature: 0.4,
+  language: 'Chinese',
+  sendPartial: false,
+  sentenceMinLen: 5,
+  rollbackNum: 5,
 })
 
 const provider = ref('gguf')
@@ -144,10 +158,6 @@ const canStart = computed(() => {
   return s === 'idle' || s === 'error'
 })
 
-const canStop = computed(() => {
-  return transcription.state.value === 'running'
-})
-
 const isTransitioning = computed(() => {
   const s = transcription.state.value
   return s === 'starting' || s === 'stopping'
@@ -223,32 +233,48 @@ function stopCapture() {
 }
 
 // ─── Fetch helpers ─────────────────────────────────────────
+function syncASRConfig(data: Record<string, unknown>) {
+  const camel = asrConfigToCamel(data)
+  const s = advancedSettings.value
+  if (camel.overlapSec !== undefined) s.overlapSec = camel.overlapSec
+  if (camel.memoryChunks !== undefined) s.memoryChunks = camel.memoryChunks
+  if (camel.vadThreshold !== undefined) s.vadThreshold = camel.vadThreshold
+  if (camel.vadMaxBufferSec !== undefined) s.vadMaxBufferSec = camel.vadMaxBufferSec
+  if (camel.vadMinBufferSec !== undefined) s.vadMinBufferSec = camel.vadMinBufferSec
+  if (camel.vadSilenceMs !== undefined) s.vadSilenceMs = camel.vadSilenceMs
+  if (camel.temperature !== undefined) s.temperature = camel.temperature
+  if (camel.language !== undefined) s.language = camel.language
+  if (camel.sendPartial !== undefined) s.sendPartial = camel.sendPartial
+  if (camel.sentenceMinLen !== undefined) s.sentenceMinLen = camel.sentenceMinLen
+  if (camel.rollbackNum !== undefined) s.rollbackNum = camel.rollbackNum
+}
 async function fetchASRConfig() {
   try {
     const data = await $fetch<Record<string, unknown>>('/api/asr/config')
-    if (data.overlap_sec !== undefined) advancedSettings.value.overlapSec = data.overlap_sec as number
-    if (data.memory_chunks !== undefined) advancedSettings.value.memoryChunks = data.memory_chunks as number
+    syncASRConfig(data)
   } catch {
     // config API 不可用时忽略
   }
 }
 
 // ─── Main actions ──────────────────────────────────────────
-async function handleStart() {
-  statusMessage.value = ''
-  await transcription.startTranscription({
-    source: source.value,
-    ...(source.value === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {}),
+function buildASRConfig(): ASRConfig {
+  const s = advancedSettings.value
+  return {
     provider: provider.value,
-    overlapSec: advancedSettings.value.overlapSec,
-    memoryChunks: advancedSettings.value.memoryChunks
-  })
+    overlapSec: s.overlapSec,
+    memoryChunks: s.memoryChunks,
+    vadThreshold: s.vadThreshold,
+    vadMaxBufferSec: s.vadMaxBufferSec,
+    vadMinBufferSec: s.vadMinBufferSec,
+    vadSilenceMs: s.vadSilenceMs,
+    temperature: s.temperature,
+    language: s.language,
+    sendPartial: s.sendPartial,
+    sentenceMinLen: s.sentenceMinLen,
+    rollbackNum: s.rollbackNum,
+  }
 }
-
-async function handleStop() {
-  await transcription.stopTranscription()
-}
-
 // ─── Independent audio/recognition toggles ────────────────
 const audioLoading = ref(false)
 const recognitionLoading = ref(false)
@@ -287,9 +313,7 @@ async function toggleRecognition() {
     recognitionLoading.value = true
     try {
       await transcription.startRecognitionOnly({
-        provider: provider.value,
-        overlapSec: advancedSettings.value.overlapSec,
-        memoryChunks: advancedSettings.value.memoryChunks,
+        ...buildASRConfig(),
       })
     } finally {
       recognitionLoading.value = false
@@ -482,7 +506,7 @@ onUnmounted(() => {
         <!-- Audio / Recognition sub-status -->
         <div class="sub-status-grid">
           <div class="sub-status-row">
-            <span class="sub-status-label">音频</span>
+            <span class="sub-status-label">音频服务</span>
             <span class="sub-status-value">
               <span
                 class="sub-dot"
@@ -501,7 +525,7 @@ onUnmounted(() => {
             </button>
           </div>
           <div class="sub-status-row">
-            <span class="sub-status-label">识别</span>
+            <span class="sub-status-label">识别服务</span>
             <span class="sub-status-value">
               <span
                 class="sub-dot"
@@ -557,32 +581,6 @@ onUnmounted(() => {
           <line x1="12" y1="8" x2="12.01" y2="8"/>
         </svg>
         <span>{{ statusMessage }}</span>
-      </div>
-
-      <!-- ── Action buttons ──────────────────────── -->
-      <div class="action-row">
-        <button
-          v-if="canStart"
-          class="action-btn start"
-          @click="handleStart"
-        >
-          {{ transcription.state.value === 'error' ? '重新开始' : '开始转录' }}
-        </button>
-        <button
-          v-else-if="canStop"
-          class="action-btn stop"
-          @click="handleStop"
-        >
-          停止转录
-        </button>
-        <button
-          v-else
-          class="action-btn"
-          :class="transcription.state.value === 'starting' ? 'starting' : 'stopping'"
-          disabled
-        >
-          {{ transcription.state.value === 'starting' ? '启动中...' : '停止中...' }}
-        </button>
       </div>
 
       <!-- ── Advanced ────────────────────────────── -->
@@ -672,14 +670,116 @@ onUnmounted(() => {
             <span>降噪</span>
           </label>
         </div>
+
+        <!-- ── VAD 设置 ── -->
+        <div class="section-label">
+          <span class="section-text">VAD</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">语音阈值</label>
+          <select v-model.number="advancedSettings.vadThreshold" class="form-input">
+            <option :value="0.3">0.3 (灵敏)</option>
+            <option :value="0.4">0.4</option>
+            <option :value="0.5">0.5 (默认)</option>
+            <option :value="0.6">0.6</option>
+            <option :value="0.7">0.7 (严格)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">最大缓冲 (秒)</label>
+          <select v-model.number="advancedSettings.vadMaxBufferSec" class="form-input">
+            <option :value="5">5</option>
+            <option :value="8">8</option>
+            <option :value="10">10 (默认)</option>
+            <option :value="15">15</option>
+            <option :value="20">20</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">最小缓冲 (秒)</label>
+          <select v-model.number="advancedSettings.vadMinBufferSec" class="form-input">
+            <option :value="0.3">0.3</option>
+            <option :value="0.5">0.5 (默认)</option>
+            <option :value="0.8">0.8</option>
+            <option :value="1.0">1.0</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">静音检测 (ms)</label>
+          <select v-model.number="advancedSettings.vadSilenceMs" class="form-input">
+            <option :value="200">200</option>
+            <option :value="300">300 (默认)</option>
+            <option :value="500">500</option>
+            <option :value="700">700</option>
+            <option :value="1000">1000</option>
+          </select>
+        </div>
+
+        <!-- ── ASR 引擎 ── -->
+        <div class="section-label">
+          <span class="section-text">引擎</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">语言</label>
+          <select v-model="advancedSettings.language" class="form-input">
+            <option value="Chinese">Chinese</option>
+            <option value="English">English</option>
+            <option value="Japanese">Japanese</option>
+            <option value="Korean">Korean</option>
+            <option value="Auto">Auto</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">温度</label>
+          <select v-model.number="advancedSettings.temperature" class="form-input">
+            <option :value="0.0">0.0 (确定性)</option>
+            <option :value="0.2">0.2</option>
+            <option :value="0.4">0.4 (默认)</option>
+            <option :value="0.6">0.6</option>
+            <option :value="0.8">0.8</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">回滚 token</label>
+          <select v-model.number="advancedSettings.rollbackNum" class="form-input">
+            <option :value="0">0</option>
+            <option :value="3">3</option>
+            <option :value="5">5 (默认)</option>
+            <option :value="10">10</option>
+            <option :value="15">15</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">最短句长</label>
+          <select v-model.number="advancedSettings.sentenceMinLen" class="form-input">
+            <option :value="0">0</option>
+            <option :value="3">3</option>
+            <option :value="5">5 (默认)</option>
+            <option :value="8">8</option>
+            <option :value="10">10</option>
+          </select>
+        </div>
+
+        <div class="form-row advanced-check-row">
+          <label class="check-label">
+            <input type="checkbox" v-model="advancedSettings.sendPartial" />
+            <span>中间结果</span>
+          </label>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
-
 .panel {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.6) 100%);
   border: 1px solid rgba(56, 189, 248, 0.2);
@@ -1102,63 +1202,6 @@ onUnmounted(() => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-}
-
-/* ── Action buttons ── */
-.action-row {
-  margin-top: 0.25rem;
-}
-
-.action-btn {
-  width: 100%;
-  padding: 0.75rem;
-  border-radius: 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid;
-}
-
-.action-btn.start {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #10b981;
-}
-
-.action-btn.start:hover {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.2));
-  border-color: rgba(16, 185, 129, 0.6);
-}
-
-.action-btn.stop {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
-}
-
-.action-btn.stop:hover {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.2));
-  border-color: rgba(239, 68, 68, 0.6);
-}
-
-.action-btn.starting {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.05));
-  border-color: rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
-}
-
-.action-btn.stopping {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.05));
-  border-color: rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ── Advanced ── */

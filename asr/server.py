@@ -114,7 +114,11 @@ async def handle_connection(websocket):
         logger.info("客户端断开")
 
 
-DYNAMIC_CONFIG_KEYS = ("overlap_sec", "memory_chunks")
+DYNAMIC_CONFIG_KEYS = (
+    "overlap_sec", "memory_chunks",
+    "vad_threshold", "vad_max_buffer_sec", "vad_min_buffer_sec", "vad_silence_ms",
+    "temperature", "language", "send_partial", "sentence_min_len", "rollback_num",
+)
 
 
 async def handle_config(websocket, msg: dict):
@@ -136,8 +140,11 @@ async def handle_config(websocket, msg: dict):
     await websocket.send(encode_message(LoadingEvent()))
     try:
         model_inst = await manager.ensure_loaded(provider, model)
-        for key, value in dynamic_config.items():
-            setattr(model_inst, key, value)
+        if hasattr(model_inst, 'apply_config'):
+            model_inst.apply_config(dynamic_config)
+        else:
+            for key, value in dynamic_config.items():
+                setattr(model_inst, key, value)
         model_inst.set_result_queue(result_queue)
         await websocket.send(encode_message(ReadyEvent()))
         logger.info(f"Provider 就绪: {provider}, 动态配置: {dynamic_config}")
@@ -202,6 +209,15 @@ async def main():
     default_config = {
         "overlap_sec": 0.1,
         "memory_chunks": 2,
+        "vad_threshold": 0.5,
+        "vad_max_buffer_sec": 10.0,
+        "vad_min_buffer_sec": 0.5,
+        "vad_silence_ms": 300,
+        "temperature": 0.4,
+        "language": "Chinese",
+        "send_partial": False,
+        "sentence_min_len": 5,
+        "rollback_num": 5,
     }
     init_defaults(default_config)
     logger.info(f"配置已从 SQLite 加载: {get_all()}")

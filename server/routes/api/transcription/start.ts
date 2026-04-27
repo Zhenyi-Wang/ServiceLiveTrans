@@ -1,12 +1,13 @@
 import { orchestrator } from '../../../utils/transcription-orchestrator'
+import type { ASRConfig } from '../../../../types/asr'
 
 const VALID_SOURCES = ['mic', 'stream'] as const
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({}))
-  const { source, streamUrl, provider, model, overlapSec, memoryChunks } = body
+  const { source, streamUrl, ...asrConfig } = body as { source?: string; streamUrl?: string } & ASRConfig
 
-  if (source && !VALID_SOURCES.includes(source)) {
+  if (source && !VALID_SOURCES.includes(source as typeof VALID_SOURCES[number])) {
     throw createError({
       statusCode: 400,
       statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
@@ -23,10 +24,7 @@ export default defineEventHandler(async (event) => {
   const result = await orchestrator.start({
     source: (source || 'mic') as typeof VALID_SOURCES[number],
     streamUrl,
-    provider,
-    model,
-    overlapSec,
-    memoryChunks
+    ...asrConfig,
   })
 
   if (!result.success) {
