@@ -7,6 +7,7 @@
 ## 背景
 
 现有管道已就绪：
+
 - `useAudioCapture` composable 已实现浏览器麦克风捕获（Web Audio API + AudioWorkletNode），输出 16kHz mono 16bit PCM，每次 100ms chunk
 - WebSocket handler（`server/routes/api/ws.ts`）已支持接收 `audio` 类型消息并转发给 `sendAudioChunk()` → ASR Bridge → Python ASR
 - `audio-source/mic.ts` 存在但未实现（服务端 MicSource）
@@ -18,18 +19,18 @@
 
 管理后台目前有三个控制面板，各自管理不同的后端路径：
 
-| 面板 | API 路径 | 音频数据来源 | 适用场景 |
-|------|----------|-------------|---------|
-| AdminControlPanel | `/api/simulate/*` | 无（模拟文本） | 开发调试 |
-| AdminASRControlPanel | `/api/asr/*` | 前端 WS 推送（mic/file）或服务端 ffmpeg（stream） | 直接 ASR 转录 |
-| AdminLiveTransControl | `/api/live/*` | 服务端 ffmpeg（FLV 流） | 带重连/状态广播的直播转录 |
+| 面板                  | API 路径          | 音频数据来源                                      | 适用场景                  |
+| --------------------- | ----------------- | ------------------------------------------------- | ------------------------- |
+| AdminControlPanel     | `/api/simulate/*` | 无（模拟文本）                                    | 开发调试                  |
+| AdminASRControlPanel  | `/api/asr/*`      | 前端 WS 推送（mic/file）或服务端 ffmpeg（stream） | 直接 ASR 转录             |
+| AdminLiveTransControl | `/api/live/*`     | 服务端 ffmpeg（FLV 流）                           | 带重连/状态广播的直播转录 |
 
 **互斥规则**：ASRControlPanel 和 LiveTransControl 共享同一个全局 ASR Bridge 单例。同时启动两者会导致 provider 冲突（LiveTransManager 硬编码 `provider: 'gguf'`，而 ASRControlPanel 允许选择 `whisper`/`funasr`）。实施时需要确保：
 
 1. 前端启动 ASRControlPanel 前检查 `/api/live/status`，如果 `state !== 'idle'` 则提示用户先停止直播转录
 2. 前端启动 LiveTransControl 前检查 `/api/asr/status`，如果 `isActive === true` 则提示用户先停止 ASR
 3. 不依赖 `transcriptionState.source` 来区分面板来源（因为两个面板都会设为 `'asr'`），而是分别检查各自的 status API
-3. ASRControlPanel 的 stream 选项与 LiveTransControl 功能重叠，**移除 ASRControlPanel 的 stream 选项**，ASRControlPanel 仅保留 mic 和 file 两种源。直播流场景统一由 LiveTransControl 管理。
+4. ASRControlPanel 的 stream 选项与 LiveTransControl 功能重叠，**移除 ASRControlPanel 的 stream 选项**，ASRControlPanel 仅保留 mic 和 file 两种源。直播流场景统一由 LiveTransControl 管理。
 
 ## 数据流
 
@@ -150,7 +151,7 @@ WAVEFORM                        ← 整段文件静态波形 + 播放指针
 workletNode.port.postMessage({
   type: 'config',
   targetSampleRate: 16000,
-  chunkDurationMs: 100
+  chunkDurationMs: 100,
   // _outputChunkSize = targetSampleRate * chunkDurationMs / 1000
   // 例如 16000 * 100 / 1000 = 1600
 })
@@ -186,14 +187,14 @@ workletNode.port.postMessage({
 
 ## 改动文件清单
 
-| 文件 | 改动类型 | 描述 |
-|------|----------|------|
-| `components/admin/ASRControlPanel.vue` | 大改 | 两种源（mic/file）的 UI、设备枚举、波形 canvas、文件选择、进度条、高级设置折叠。移除 stream 选项 |
-| `composables/useAudioCapture.ts` | 修改 | 支持 deviceId 参数、可配降噪等、返回 AnalyserNode 用于波形 |
-| `composables/useAudioFilePlayer.ts` | 新建 | 文件解码、降采样、定时切片发送、进度控制、seek（含静音 flush）、静态波形数据生成 |
-| `composables/useWaveformRenderer.ts` | 新建 | Canvas 波形绘制逻辑（实时波形 + 静态波形 + 播放指针），从 ASRControlPanel 中抽离 |
-| `public/audio-worklet-processor.js` | 修改 | targetSampleRate 和 outputChunkSize 从硬编码改为可配置（通过 port message 传入） |
-| 后端 | 无改动 | WS handler 和 ASR Bridge 现有逻辑完全复用 |
+| 文件                                   | 改动类型 | 描述                                                                                             |
+| -------------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `components/admin/ASRControlPanel.vue` | 大改     | 两种源（mic/file）的 UI、设备枚举、波形 canvas、文件选择、进度条、高级设置折叠。移除 stream 选项 |
+| `composables/useAudioCapture.ts`       | 修改     | 支持 deviceId 参数、可配降噪等、返回 AnalyserNode 用于波形                                       |
+| `composables/useAudioFilePlayer.ts`    | 新建     | 文件解码、降采样、定时切片发送、进度控制、seek（含静音 flush）、静态波形数据生成                 |
+| `composables/useWaveformRenderer.ts`   | 新建     | Canvas 波形绘制逻辑（实时波形 + 静态波形 + 播放指针），从 ASRControlPanel 中抽离                 |
+| `public/audio-worklet-processor.js`    | 修改     | targetSampleRate 和 outputChunkSize 从硬编码改为可配置（通过 port message 传入）                 |
+| 后端                                   | 无改动   | WS handler 和 ASR Bridge 现有逻辑完全复用                                                        |
 
 ## 不做的事
 

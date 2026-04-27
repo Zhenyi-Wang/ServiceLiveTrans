@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({
-  layout: false
+  layout: false,
 })
 
 // 状态
@@ -28,18 +28,18 @@ const wsSendLog = ref<Array<{ time: string; type: string; success: boolean; cont
 
 // 表单字段
 const formFields = ref({
-  text: '',           // 中文文本 (current/confirmed)
-  subtitleId: '',      // 字幕 ID (confirmed)
-  optimizedText: '',   // 优化文本 (confirmed)
-  enText: '',         // 英文翻译 (current/confirmed)
-  version: 0,         // 中文版本号 (current)
-  enVersion: 0        // 英文版本号 (current)
+  text: '', // 中文文本 (current/confirmed)
+  subtitleId: '', // 字幕 ID (confirmed)
+  optimizedText: '', // 优化文本 (confirmed)
+  enText: '', // 英文翻译 (current/confirmed)
+  version: 0, // 中文版本号 (current)
+  enVersion: 0, // 英文版本号 (current)
 })
 
 const wsMessageTypes = [
   { value: 'current', label: 'current', desc: '当前输入' },
   { value: 'confirmed', label: 'confirmed', desc: '确认字幕' },
-  { value: 'clear', label: 'clear', desc: '清空字幕' }
+  { value: 'clear', label: 'clear', desc: '清空字幕' },
 ]
 
 const formatTime = (date: Date) => {
@@ -53,14 +53,14 @@ const getMessageData = () => {
         text: formFields.value.text,
         enText: formFields.value.enText,
         version: formFields.value.version || 1,
-        enVersion: formFields.value.enVersion || 0
+        enVersion: formFields.value.enVersion || 0,
       }
     case 'confirmed':
       return {
         id: formFields.value.subtitleId || crypto.randomUUID(),
         text: formFields.value.text,
         optimizedText: formFields.value.optimizedText || formFields.value.text,
-        enText: formFields.value.enText
+        enText: formFields.value.enText,
       }
     case 'clear':
       return null
@@ -79,23 +79,30 @@ const handleSendWsMessage = async () => {
       method: 'POST',
       body: {
         type: wsMessageType.value,
-        data
-      }
+        data,
+      },
     })
     wsSendLog.value.unshift({
       time,
       type: wsMessageType.value,
       success: true,
-      content: data ? JSON.stringify(data).substring(0, 60) : '(no data)'
+      content: data ? JSON.stringify(data).substring(0, 60) : '(no data)',
     })
     // 清空表单
-    formFields.value = { text: '', subtitleId: '', optimizedText: '', enText: '', version: 0, enVersion: 0 }
-  } catch (error: any) {
+    formFields.value = {
+      text: '',
+      subtitleId: '',
+      optimizedText: '',
+      enText: '',
+      version: 0,
+      enVersion: 0,
+    }
+  } catch (error: unknown) {
     wsSendLog.value.unshift({
       time,
       type: wsMessageType.value,
       success: false,
-      content: error.message || '发送失败'
+      content: error instanceof Error ? error.message : '发送失败',
     })
   } finally {
     wsSendLoading.value = false
@@ -117,7 +124,7 @@ const handleStart = async (delay?: number) => {
   try {
     await $fetch('/api/simulate/start', {
       method: 'POST',
-      body: delay ? { delay } : undefined
+      body: delay ? { delay } : undefined,
     })
     isRunning.value = true
     await fetchStatus()
@@ -201,8 +208,10 @@ onUnmounted(() => {
         <div class="logo-section">
           <div class="logo-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+              />
             </svg>
           </div>
           <div class="logo-text">
@@ -214,12 +223,20 @@ onUnmounted(() => {
         <div class="header-right">
           <div class="time-display">
             <span class="time-label">系统时间</span>
-            <span class="time-value"><ClientOnly>{{ formattedTime }}</ClientOnly></span>
+            <span class="time-value"
+              ><ClientOnly>{{ formattedTime }}</ClientOnly></span
+            >
           </div>
 
           <NuxtLink to="/" class="nav-link">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              class="nav-icon"
+            >
+              <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             <span>返回前台</span>
           </NuxtLink>
@@ -259,19 +276,31 @@ onUnmounted(() => {
         <!-- 开发测试工具（折叠） -->
         <div class="dev-tools-section">
           <button class="dev-tools-toggle" @click="devToolsOpen = !devToolsOpen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="toggle-icon">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              class="toggle-icon"
+            >
+              <path
+                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+              />
             </svg>
             <span class="toggle-title">开发工具</span>
             <svg
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              class="toggle-arrow" :class="{ open: devToolsOpen }"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              class="toggle-arrow"
+              :class="{ open: devToolsOpen }"
             >
-              <polyline points="6 9 12 15 18 9"/>
+              <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
 
-          <div class="dev-tools-content" v-show="devToolsOpen">
+          <div v-show="devToolsOpen" class="dev-tools-content">
             <!-- 模拟控制 -->
             <AdminControlPanel
               :is-running="isRunning"
@@ -287,7 +316,7 @@ onUnmounted(() => {
               <div class="panel-header">
                 <div class="panel-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                   </svg>
                 </div>
                 <span class="panel-title">WS 事件测试</span>
@@ -312,7 +341,7 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 动态表单字段 -->
-                <div class="form-fields" v-if="wsMessageType !== 'clear'">
+                <div v-if="wsMessageType !== 'clear'" class="form-fields">
                   <!-- current 字段 -->
                   <template v-if="wsMessageType === 'current'">
                     <div class="form-row">
@@ -401,32 +430,41 @@ onUnmounted(() => {
                 </div>
 
                 <!-- clear 提示 -->
-                <div class="clear-hint" v-if="wsMessageType === 'clear'">
+                <div v-if="wsMessageType === 'clear'" class="clear-hint">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                   <span>点击发送将清空所有字幕</span>
                 </div>
 
-                <button
-                  class="send-btn"
-                  :disabled="wsSendLoading"
-                  @click="handleSendWsMessage"
-                >
-                  <svg v-if="wsSendLoading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                <button class="send-btn" :disabled="wsSendLoading" @click="handleSendWsMessage">
+                  <svg
+                    v-if="wsSendLoading"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    class="spin-icon"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                   </svg>
-                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
                   </svg>
                   <span>发送</span>
                 </button>
               </div>
 
-              <div class="ws-log" v-if="wsSendLog.length > 0">
+              <div v-if="wsSendLog.length > 0" class="ws-log">
                 <div class="log-header">发送日志</div>
                 <div class="log-list">
                   <div
@@ -444,7 +482,6 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-
       </div>
     </main>
 
@@ -467,7 +504,6 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-
 .control-room {
   min-height: 100vh;
   background: linear-gradient(135deg, #0a0e17 0%, #0d1320 50%, #0a0e17 100%);
@@ -554,8 +590,13 @@ onUnmounted(() => {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.2); }
-  50% { box-shadow: 0 0 30px rgba(56, 189, 248, 0.4); }
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.4);
+  }
 }
 
 .logo-text {
@@ -666,8 +707,15 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.1); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
 }
 
 .status-text {
@@ -985,8 +1033,12 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ws-log {

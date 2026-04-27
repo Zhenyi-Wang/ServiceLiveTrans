@@ -1,7 +1,11 @@
 """配置加载"""
+
 from __future__ import annotations
+
 import os
 from pathlib import Path
+from typing import Any
+
 import yaml
 
 
@@ -10,11 +14,9 @@ class ASRConfig:
         if config_path is None:
             config_path = str(Path(__file__).parent / "config.yaml")
         with open(config_path) as f:
-            self._raw = yaml.safe_load(f)
-        if self._raw is None:
-            self._raw = {}
+            self._raw: dict[str, Any] = yaml.safe_load(f) or {}
 
-    def _require(self, *keys: str) -> str:
+    def _require(self, *keys: str) -> Any:
         node = self._raw
         for key in keys:
             if not isinstance(node, dict) or key not in node:
@@ -28,18 +30,18 @@ class ASRConfig:
 
     @property
     def server_port(self) -> int:
-        return self._require("server", "port")
+        return int(self._require("server", "port"))
 
     @property
     def idle_timeout(self) -> int:
-        return self._require("server", "idle_timeout")
+        return int(self._require("server", "idle_timeout"))
 
     @property
     def check_interval(self) -> int:
-        return self._require("server", "check_interval")
+        return int(self._require("server", "check_interval"))
 
-    def gguf_config(self) -> dict:
-        cfg = dict(self._require("gguf"))
+    def gguf_config(self) -> dict[str, Any]:
+        cfg: dict[str, Any] = dict(self._require("gguf"))
         env_model_dir = os.environ.get("GGUF_MODEL_DIR")
         if env_model_dir:
             cfg["model_dir"] = env_model_dir

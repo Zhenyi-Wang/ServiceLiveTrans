@@ -7,7 +7,7 @@ interface Props {
   autoScroll: boolean
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const emit = defineEmits<{
   fullscreen: []
@@ -25,22 +25,21 @@ const handleAutoScrollClick = () => {
 </script>
 
 <template>
-  <div
-    class="section-header"
-    :class="{ fullscreen: isFullscreen }"
-  >
+  <div class="section-header" :class="{ fullscreen: isFullscreen }">
     <div class="header-left">
       <button
         class="control-btn fullscreen-btn"
         :title="isFullscreen ? '退出全屏' : '全屏'"
         @click="$emit('fullscreen')"
       >
-        <UIcon :name="isFullscreen ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'" class="w-4 h-4" />
+        <UIcon
+          :name="
+            isFullscreen ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'
+          "
+          class="w-4 h-4"
+        />
       </button>
-      <h3
-        class="section-title clickable"
-        @click="$emit('fullscreen')"
-      >
+      <h3 class="section-title clickable" @click="$emit('fullscreen')">
         {{ title }}
       </h3>
     </div>
@@ -190,7 +189,8 @@ const handleAutoScrollClick = () => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.4);
   }
   50% {

@@ -12,27 +12,28 @@
 
 ## 文件结构
 
-| 操作 | 文件 | 职责 |
-|------|------|------|
-| 新建 | `server/utils/transcription-manager.ts` | 统一转录管理器（ASR Bridge + 音频源 + 状态） |
-| 重写 | `server/routes/api/asr/start.ts` | 委托给 transcriptionManager.start() |
-| 重写 | `server/routes/api/asr/stop.ts` | 委托给 transcriptionManager.stop() |
-| 重写 | `server/routes/api/asr/status.ts` | 委托给 transcriptionManager.getStatus() |
-| 修改 | `server/routes/api/ws.ts` | import 改为 transcriptionManager |
-| 重写 | `server/routes/api/live/start.ts` | 委托给 transcriptionManager.start() |
-| 重写 | `server/routes/api/live/stop.ts` | 委托给 transcriptionManager.stop() |
-| 重写 | `server/routes/api/live/status.ts` | 委托给 transcriptionManager.getStatus() |
-| 删除 | `server/utils/asr-bridge.ts` | 功能合并到 transcription-manager.ts |
-| 删除 | `server/utils/live-trans-manager.ts` | 功能合并到 transcription-manager.ts |
-| 修改 | `components/admin/ASRControlPanel.vue` | 移除 LiveTrans 互斥检查 |
-| 删除 | `components/admin/LiveTransControl.vue` | 功能已在 ASRControlPanel 中 |
-| 修改 | `pages/admin.vue` | 移除 LiveTrans 相关状态和处理函数，移除 LiveTransControl 组件 |
+| 操作 | 文件                                    | 职责                                                          |
+| ---- | --------------------------------------- | ------------------------------------------------------------- |
+| 新建 | `server/utils/transcription-manager.ts` | 统一转录管理器（ASR Bridge + 音频源 + 状态）                  |
+| 重写 | `server/routes/api/asr/start.ts`        | 委托给 transcriptionManager.start()                           |
+| 重写 | `server/routes/api/asr/stop.ts`         | 委托给 transcriptionManager.stop()                            |
+| 重写 | `server/routes/api/asr/status.ts`       | 委托给 transcriptionManager.getStatus()                       |
+| 修改 | `server/routes/api/ws.ts`               | import 改为 transcriptionManager                              |
+| 重写 | `server/routes/api/live/start.ts`       | 委托给 transcriptionManager.start()                           |
+| 重写 | `server/routes/api/live/stop.ts`        | 委托给 transcriptionManager.stop()                            |
+| 重写 | `server/routes/api/live/status.ts`      | 委托给 transcriptionManager.getStatus()                       |
+| 删除 | `server/utils/asr-bridge.ts`            | 功能合并到 transcription-manager.ts                           |
+| 删除 | `server/utils/live-trans-manager.ts`    | 功能合并到 transcription-manager.ts                           |
+| 修改 | `components/admin/ASRControlPanel.vue`  | 移除 LiveTrans 互斥检查                                       |
+| 删除 | `components/admin/LiveTransControl.vue` | 功能已在 ASRControlPanel 中                                   |
+| 修改 | `pages/admin.vue`                       | 移除 LiveTrans 相关状态和处理函数，移除 LiveTransControl 组件 |
 
 ---
 
 ### Task 1: 创建 TranscriptionManager 核心模块
 
 **Files:**
+
 - Create: `server/utils/transcription-manager.ts`
 - Read (reference): `server/utils/asr-bridge.ts`
 - Read (reference): `server/utils/live-trans-manager.ts`
@@ -104,11 +105,13 @@ function bridgeConnect(): void {
       bridgeStatus = 'connected'
       console.log(`[TranscriptionManager] ASR 已连接: ${bridgeConfig!.url}`)
 
-      ws!.send(JSON.stringify({
-        type: 'config',
-        provider: bridgeConfig!.provider,
-        model: bridgeConfig!.model
-      }))
+      ws!.send(
+        JSON.stringify({
+          type: 'config',
+          provider: bridgeConfig!.provider,
+          model: bridgeConfig!.model,
+        }),
+      )
     })
 
     ws.on('message', (data: Buffer) => {
@@ -191,7 +194,7 @@ function processResult(result: { type: string; text: string; language: string })
       text: result.text,
       enText: '',
       version: partialVersion,
-      enVersion: 0
+      enVersion: 0,
     }
     broadcast({ type: 'current', data })
 
@@ -200,7 +203,7 @@ function processResult(result: { type: string; text: string; language: string })
       enText: '',
       version: partialVersion,
       enVersion: 0,
-      startTime: Date.now()
+      startTime: Date.now(),
     }
   } else if (result.type === 'final') {
     partialVersion = 0
@@ -210,7 +213,7 @@ function processResult(result: { type: string; text: string; language: string })
       id,
       text: result.text,
       optimizedText: '',
-      enText: ''
+      enText: '',
     }
     broadcast({ type: 'confirmed', data })
     broadcast({ type: 'current', data: { text: '', enText: '', version: 0, enVersion: 0 } })
@@ -219,12 +222,15 @@ function processResult(result: { type: string; text: string; language: string })
     transcriptionState.confirmedSubtitles.push({
       id,
       text: result.text,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
-    processAI(result.text).then(ai => {
-      broadcast({ type: 'ai-processed', data: { id, optimizedText: ai.optimizedText, enText: ai.enText } })
-      const subtitle = transcriptionState.confirmedSubtitles.find(s => s.id === id)
+    processAI(result.text).then((ai) => {
+      broadcast({
+        type: 'ai-processed',
+        data: { id, optimizedText: ai.optimizedText, enText: ai.enText },
+      })
+      const subtitle = transcriptionState.confirmedSubtitles.find((s) => s.id === id)
       if (subtitle) {
         subtitle.optimizedText = ai.optimizedText
         subtitle.enText = ai.enText
@@ -259,8 +265,8 @@ function _broadcastStatus(): void {
       state: managerState,
       source: currentSource,
       error: undefined,
-      reconnectCount: audioSource?.getStatus().reconnectCount
-    }
+      reconnectCount: audioSource?.getStatus().reconnectCount,
+    },
   })
 }
 
@@ -401,7 +407,7 @@ export const transcriptionManager = {
       asrConnected: bridgeStatus === 'connected',
       asrProvider: bridgeConfig?.provider ?? null,
       sourceStatus: audioSource?.getStatus(),
-      uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
+      uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
     }
   },
 
@@ -411,7 +417,7 @@ export const transcriptionManager = {
 
   isActive(): boolean {
     return managerState !== 'idle'
-  }
+  },
 }
 ```
 
@@ -427,6 +433,7 @@ git commit -m "feat: 创建统一转录管理器 TranscriptionManager"
 ### Task 2: 重写 API 路由，委托给 TranscriptionManager
 
 **Files:**
+
 - Rewrite: `server/routes/api/asr/start.ts`
 - Rewrite: `server/routes/api/asr/stop.ts`
 - Rewrite: `server/routes/api/asr/status.ts`
@@ -450,18 +457,18 @@ export default defineEventHandler(async (event) => {
   if (source && !VALID_SOURCES.includes(source)) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
+      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`,
     })
   }
 
   if (transcriptionManager.isActive()) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Transcription already running'
+      statusMessage: 'Transcription already running',
     })
   }
 
-  const resolvedSource = (source || 'mic') as typeof VALID_SOURCES[number]
+  const resolvedSource = (source || 'mic') as (typeof VALID_SOURCES)[number]
 
   // spawn ASR 进程（如果未运行）
   let spawned = false
@@ -471,7 +478,7 @@ export default defineEventHandler(async (event) => {
   } catch (error: any) {
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'ASR 进程启动失败'
+      statusMessage: error.message || 'ASR 进程启动失败',
     })
   }
 
@@ -479,13 +486,13 @@ export default defineEventHandler(async (event) => {
     provider: provider || 'gguf',
     model: model || '',
     source: resolvedSource,
-    streamUrl
+    streamUrl,
   })
 
   if (!success) {
     throw createError({
       statusCode: 500,
-      statusMessage: '转录启动失败'
+      statusMessage: '转录启动失败',
     })
   }
 
@@ -493,7 +500,7 @@ export default defineEventHandler(async (event) => {
     success: true,
     spawned,
     provider,
-    source: resolvedSource
+    source: resolvedSource,
   }
 })
 ```
@@ -523,7 +530,7 @@ export default defineEventHandler(() => {
     bridgeStatus: status.asrConnected ? 'connected' : 'disconnected',
     provider: status.asrProvider,
     modelLoaded: status.asrConnected,
-    source: status.source
+    source: status.source,
   }
 })
 ```
@@ -549,8 +556,8 @@ export default defineWebSocketHandler({
       type: 'init',
       data: {
         current: transcriptionState.currentSubtitle?.text ?? null,
-        confirmed: transcriptionState.confirmedSubtitles
-      }
+        confirmed: transcriptionState.confirmedSubtitles,
+      },
     }
     sendTo(peer, initMessage)
   },
@@ -571,7 +578,7 @@ export default defineWebSocketHandler({
   error(peer, error) {
     console.error(`WebSocket error: ${error}`)
     removeConnection(peer)
-  }
+  },
 })
 ```
 
@@ -588,14 +595,14 @@ export default defineEventHandler(async (event) => {
   if (!sourceType || !['flv', 'mic'].includes(sourceType)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'sourceType must be "flv" or "mic"'
+      statusMessage: 'sourceType must be "flv" or "mic"',
     })
   }
 
   if (transcriptionManager.isActive()) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Transcription already running'
+      statusMessage: 'Transcription already running',
     })
   }
 
@@ -611,7 +618,7 @@ export default defineEventHandler(async (event) => {
     provider: 'gguf',
     model: '',
     source: 'stream',
-    streamUrl
+    streamUrl,
   })
 
   return { success, sourceType }
@@ -640,7 +647,7 @@ export default defineEventHandler(() => {
     state: status.state,
     sourceType: status.source === 'stream' ? 'flv' : status.source,
     reconnectCount: status.sourceStatus?.reconnectCount ?? 0,
-    uptime: status.uptime
+    uptime: status.uptime,
   }
 })
 ```
@@ -657,6 +664,7 @@ git commit -m "refactor: API 路由统一委托给 TranscriptionManager"
 ### Task 3: 删除旧模块
 
 **Files:**
+
 - Delete: `server/utils/asr-bridge.ts`
 - Delete: `server/utils/live-trans-manager.ts`
 
@@ -688,6 +696,7 @@ git commit -m "refactor: 删除 asr-bridge 和 liveTransManager 旧模块"
 ### Task 4: 前端合并 — 移除 LiveTransControl
 
 **Files:**
+
 - Modify: `pages/admin.vue`
 - Delete: `components/admin/LiveTransControl.vue`
 - Modify: `components/admin/ASRControlPanel.vue`
@@ -712,6 +721,7 @@ try {
 - [ ] **Step 2: 修改 pages/admin.vue — 移除 LiveTrans 相关代码**
 
 在 `<script setup>` 中移除：
+
 1. `liveIsRunning` ref 和 `liveIsLoading` ref
 2. `handleLiveStart` 函数
 3. `handleLiveStop` 函数
@@ -727,6 +737,7 @@ rm components/admin/LiveTransControl.vue
 - [ ] **Step 4: 验证前端编译和渲染**
 
 Run: `pnpm dev`，打开 `http://localhost:3000/admin`，确认：
+
 - 页面正常渲染，无控制台报错
 - ASR ControlPanel 显示三个源选项（Microphone、File、Stream）
 - 不再显示 LiveTransControl 面板
@@ -748,6 +759,7 @@ git commit -m "refactor: 合并前端控制面板，移除 LiveTransControl"
 - [ ] **Step 1: 验证服务启动无报错**
 
 Run: `pnpm dev`，确认：
+
 - 服务启动成功，无 `Cannot find module` 错误
 - 无 TypeScript 类型错误
 
@@ -756,8 +768,15 @@ Run: `pnpm dev`，确认：
 Run: `curl http://localhost:3000/api/asr/status`
 
 Expected:
+
 ```json
-{"isActive":false,"bridgeStatus":"disconnected","provider":null,"modelLoaded":false,"source":null}
+{
+  "isActive": false,
+  "bridgeStatus": "disconnected",
+  "provider": null,
+  "modelLoaded": false,
+  "source": null
+}
 ```
 
 - [ ] **Step 3: 验证 /api/live/status 返回正确格式**
@@ -765,13 +784,15 @@ Expected:
 Run: `curl http://localhost:3000/api/live/status`
 
 Expected:
+
 ```json
-{"state":"idle","sourceType":null,"reconnectCount":0,"uptime":0}
+{ "state": "idle", "sourceType": null, "reconnectCount": 0, "uptime": 0 }
 ```
 
 - [ ] **Step 4: 验证 Stream 源启动和停止**
 
 在 admin 页面选择 Stream 源，点击 START：
+
 - 确认 ASR 进程启动
 - 确认 ASR Bridge 连接成功（状态变为 running）
 - 确认有字幕输出
@@ -780,6 +801,7 @@ Expected:
 - [ ] **Step 5: 验证 Mic 源启动和停止**
 
 选择 Microphone 源，点击 START：
+
 - 确认浏览器请求麦克风权限
 - 对着麦克风说话，确认有字幕输出
 - 点击 STOP，确认转录停止

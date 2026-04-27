@@ -41,7 +41,7 @@ export function useAudioCapture(options: AudioCaptureOptions) {
       const constraints: MediaTrackConstraints = {
         channelCount: 1,
         echoCancellation: options.echoCancellation ?? true,
-        noiseSuppression: options.noiseSuppression ?? true
+        noiseSuppression: options.noiseSuppression ?? true,
       }
       if (options.deviceId) {
         constraints.deviceId = { exact: options.deviceId }
@@ -64,7 +64,7 @@ export function useAudioCapture(options: AudioCaptureOptions) {
       workletNode.port.postMessage({
         type: 'config',
         targetSampleRate,
-        chunkDurationMs
+        chunkDurationMs,
       })
 
       sourceNode.connect(gainNode)
@@ -77,8 +77,8 @@ export function useAudioCapture(options: AudioCaptureOptions) {
       }
 
       isCapturing.value = true
-    } catch (e: any) {
-      options.onError?.(e.message || '麦克风访问失败')
+    } catch (e: unknown) {
+      options.onError?.(e instanceof Error ? e.message : '麦克风访问失败')
       cleanup()
     }
   }
@@ -106,7 +106,7 @@ export function useAudioCapture(options: AudioCaptureOptions) {
       analyserNode.value = null
     }
     if (stream) {
-      stream.getTracks().forEach(t => t.stop())
+      stream.getTracks().forEach((t) => t.stop())
       stream = null
     }
     if (audioContext) {
@@ -121,6 +121,6 @@ export function useAudioCapture(options: AudioCaptureOptions) {
     volume,
     start,
     stop,
-    cleanup
+    cleanup,
   }
 }

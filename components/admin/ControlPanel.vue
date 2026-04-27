@@ -7,7 +7,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
-  currentDelay: 2000
+  currentDelay: 2000,
 })
 
 const emit = defineEmits<{
@@ -20,9 +20,12 @@ const emit = defineEmits<{
 const delayValue = ref(props.currentDelay)
 
 // 监听 props 变化
-watch(() => props.currentDelay, (newVal) => {
-  delayValue.value = newVal
-})
+watch(
+  () => props.currentDelay,
+  (newVal) => {
+    delayValue.value = newVal
+  },
+)
 
 const handleStart = () => {
   emit('start', delayValue.value)
@@ -41,7 +44,7 @@ const delayPresets = [
   { label: '1s', value: 1000 },
   { label: '2s', value: 2000 },
   { label: '3s', value: 3000 },
-  { label: '5s', value: 5000 }
+  { label: '5s', value: 5000 },
 ]
 
 // 格式化延迟显示
@@ -54,13 +57,13 @@ const formattedDelay = computed(() => {
 <template>
   <div class="control-panel" :class="{ running: isRunning }">
     <!-- Panel glow effect -->
-    <div class="panel-glow" v-if="isRunning"></div>
+    <div v-if="isRunning" class="panel-glow"></div>
 
     <div class="panel-header">
       <div class="panel-icon" :class="{ active: isRunning }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
+          <circle cx="12" cy="12" r="10" />
+          <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" />
         </svg>
       </div>
       <div class="panel-title-group">
@@ -86,15 +89,18 @@ const formattedDelay = computed(() => {
       <div class="slider-container">
         <div class="slider-track">
           <input
-            type="range"
             v-model.number="delayValue"
+            type="range"
             min="500"
             max="10000"
             step="500"
             :disabled="isRunning"
             class="delay-slider"
           />
-          <div class="slider-fill" :style="{ width: `${((delayValue - 500) / 9500) * 100}%` }"></div>
+          <div
+            class="slider-fill"
+            :style="{ width: `${((delayValue - 500) / 9500) * 100}%` }"
+          ></div>
         </div>
 
         <div class="preset-buttons">
@@ -122,8 +128,14 @@ const formattedDelay = computed(() => {
         @click="handleStart"
       >
         <div class="btn-content">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-            <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class="btn-icon"
+          >
+            <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" />
           </svg>
           <span class="btn-text">开始广播</span>
         </div>
@@ -131,15 +143,16 @@ const formattedDelay = computed(() => {
       </button>
 
       <!-- 停止按钮 -->
-      <button
-        v-else
-        class="control-btn danger"
-        :disabled="isLoading"
-        @click="handleStop"
-      >
+      <button v-else class="control-btn danger" :disabled="isLoading" @click="handleStop">
         <div class="btn-content">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-            <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class="btn-icon"
+          >
+            <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" />
           </svg>
           <span class="btn-text">停止广播</span>
         </div>
@@ -147,15 +160,19 @@ const formattedDelay = computed(() => {
       </button>
 
       <!-- 清空按钮 -->
-      <button
-        class="control-btn secondary"
-        :disabled="isRunning || isLoading"
-        @click="handleClear"
-      >
+      <button class="control-btn secondary" :disabled="isRunning || isLoading" @click="handleClear">
         <div class="btn-content">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class="btn-icon"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path
+              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+            />
           </svg>
           <span class="btn-text">清空字幕</span>
         </div>
@@ -163,7 +180,7 @@ const formattedDelay = computed(() => {
     </div>
 
     <!-- Loading overlay -->
-    <div class="loading-overlay" v-if="isLoading">
+    <div v-if="isLoading" class="loading-overlay">
       <div class="loading-spinner"></div>
       <span class="loading-text">处理中</span>
     </div>
@@ -211,8 +228,12 @@ const formattedDelay = computed(() => {
 }
 
 @keyframes rotate-glow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .panel-header {
@@ -248,8 +269,13 @@ const formattedDelay = computed(() => {
 }
 
 @keyframes pulse-icon {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 .panel-title-group {
@@ -302,8 +328,13 @@ const formattedDelay = computed(() => {
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .badge-text {
@@ -592,7 +623,9 @@ const formattedDelay = computed(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-text {
@@ -605,7 +638,12 @@ const formattedDelay = computed(() => {
 }
 
 @keyframes pulse-text {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 </style>

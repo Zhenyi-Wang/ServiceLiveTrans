@@ -10,11 +10,11 @@ interface Props {
 const props = defineProps<Props>()
 
 const inputClasses = computed(() => ({
-  'english-input': props.language === 'english'
+  'english-input': props.language === 'english',
 }))
 
 const contentClasses = computed(() => ({
-  'english-content': props.language === 'english'
+  'english-content': props.language === 'english',
 }))
 
 const displayText = computed(() => {
@@ -27,10 +27,7 @@ const displayText = computed(() => {
 </script>
 
 <template>
-  <div
-    class="current-input"
-    :class="inputClasses"
-  >
+  <div class="current-input" :class="inputClasses">
     <div
       class="paragraph-content current-input-content"
       :class="contentClasses"
@@ -79,8 +76,14 @@ const displayText = computed(() => {
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 /* 深色主题 */

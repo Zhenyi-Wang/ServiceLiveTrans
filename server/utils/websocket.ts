@@ -1,3 +1,4 @@
+import type { Peer } from 'crossws'
 import type { WSMessage } from '../../types/websocket'
 
 /**
@@ -6,12 +7,12 @@ import type { WSMessage } from '../../types/websocket'
  */
 
 // 存储所有活跃的 WebSocket 连接
-const activeConnections = new Set<any>()
+const activeConnections = new Set<Peer>()
 
 /**
  * 添加连接到管理器
  */
-export function addConnection(peer: any) {
+export function addConnection(peer: Peer) {
   activeConnections.add(peer)
   broadcastConnectionCount()
 }
@@ -19,7 +20,7 @@ export function addConnection(peer: any) {
 /**
  * 从管理器移除连接
  */
-export function removeConnection(peer: any) {
+export function removeConnection(peer: Peer) {
   activeConnections.delete(peer)
   broadcastConnectionCount()
 }
@@ -27,7 +28,7 @@ export function removeConnection(peer: any) {
 function broadcastConnectionCount() {
   broadcast({
     type: 'connection-count',
-    data: { count: activeConnections.size }
+    data: { count: activeConnections.size },
   })
 }
 
@@ -55,7 +56,7 @@ export function broadcast(message: WSMessage) {
 /**
  * 发送消息到指定客户端
  */
-export function sendTo(peer: any, message: WSMessage) {
+export function sendTo(peer: Peer, message: WSMessage) {
   try {
     peer.send(JSON.stringify(message))
   } catch (error) {

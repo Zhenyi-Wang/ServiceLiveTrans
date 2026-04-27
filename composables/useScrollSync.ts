@@ -5,10 +5,7 @@ import type { Ref } from 'vue'
  * 联动滚动 composable
  * 管理中英文区域的滚动同步
  */
-export function useScrollSync(
-  configSyncScroll: Ref<boolean>,
-  configAutoScroll: Ref<boolean>
-) {
+export function useScrollSync(configSyncScroll: Ref<boolean>, configAutoScroll: Ref<boolean>) {
   // 滚动容器引用
   const chineseScrollContainer = ref<HTMLElement | null>(null)
   const englishScrollContainer = ref<HTMLElement | null>(null)
@@ -22,14 +19,13 @@ export function useScrollSync(
   const smoothScrollTo = (
     element: HTMLElement,
     targetScrollTop: number,
-    duration: number = 300
+    duration: number = 300,
   ) => {
     const startScrollTop = element.scrollTop
     const distance = targetScrollTop - startScrollTop
     const startTime = performance.now()
 
-    const easeInOutQuad = (t: number) =>
-      t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+    const easeInOutQuad = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t)
 
     const animateScroll = (currentTime: number) => {
       const elapsed = currentTime - startTime
@@ -52,9 +48,7 @@ export function useScrollSync(
   const scrollToBottom = () => {
     if (import.meta.client) {
       if (!chineseScrollContainer.value || !englishScrollContainer.value) {
-        const containers = Array.from(
-          document.querySelectorAll<HTMLElement>('.article-display')
-        )
+        const containers = Array.from(document.querySelectorAll<HTMLElement>('.article-display'))
         if (!chineseScrollContainer.value) {
           chineseScrollContainer.value = containers[0] ?? null
         }
@@ -76,10 +70,7 @@ export function useScrollSync(
   /**
    * 联动滚动处理
    */
-  const syncScroll = (
-    sourceElement: HTMLElement,
-    targetElement: HTMLElement | null
-  ) => {
+  const syncScroll = (sourceElement: HTMLElement, targetElement: HTMLElement | null) => {
     if (!targetElement || isSyncing || !configSyncScroll.value) return
 
     isSyncing = true
@@ -122,8 +113,8 @@ export function useScrollSync(
    * 监听数据变化并自动滚动
    */
   const watchDataAndScroll = (
-    activeSubtitle: Ref<any>,
-    confirmedSubtitles: Ref<any[]>
+    activeSubtitle: Ref<Record<string, unknown> | null>,
+    confirmedSubtitles: Ref<Array<Record<string, unknown>>>,
   ) => {
     // 监听活动字幕变化
     watch(
@@ -132,7 +123,7 @@ export function useScrollSync(
         if (configAutoScroll.value) {
           nextTick(() => scrollToBottom())
         }
-      }
+      },
     )
 
     // 监听确认字幕变化
@@ -142,7 +133,7 @@ export function useScrollSync(
         if (configAutoScroll.value) {
           nextTick(() => scrollToBottom())
         }
-      }
+      },
     )
   }
 
@@ -155,6 +146,6 @@ export function useScrollSync(
     scrollToBottom,
     onChineseScroll,
     onEnglishScroll,
-    watchDataAndScroll
+    watchDataAndScroll,
   }
 }

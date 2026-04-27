@@ -4,13 +4,13 @@ import { broadcast } from '../../../utils/websocket'
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
     type: WSMessageType
-    data?: any
+    data?: unknown
   }>(event)
 
   if (!body.type) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Missing message type'
+      statusMessage: 'Missing message type',
     })
   }
 
@@ -19,19 +19,19 @@ export default defineEventHandler(async (event) => {
   if (!validTypes.includes(body.type)) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Invalid message type: ${body.type}`
+      statusMessage: `Invalid message type: ${body.type}`,
     })
   }
 
   const message: WSMessage = {
     type: body.type,
-    data: body.data ?? null
+    data: body.data ?? null,
   }
 
   broadcast(message)
 
   return {
     success: true,
-    message: `Message of type '${body.type}' broadcast to ${1} client(s)`
+    message: `Message of type '${body.type}' broadcast to ${1} client(s)`,
   }
 })

@@ -60,13 +60,18 @@ export class FLVSource implements AudioSource {
     console.log(`[FLVSource] 连接 ${this.url}`)
 
     this.ffmpeg = spawn('ffmpeg', [
-      '-i', this.url,
+      '-i',
+      this.url,
       '-vn',
-      '-acodec', 'pcm_s16le',
-      '-ar', '16000',
-      '-ac', '1',
-      '-f', 's16le',
-      'pipe:1'
+      '-acodec',
+      'pcm_s16le',
+      '-ar',
+      '16000',
+      '-ac',
+      '1',
+      '-f',
+      's16le',
+      'pipe:1',
     ])
 
     this.ffmpeg.stdout?.on('data', (chunk: Buffer) => {
@@ -102,10 +107,7 @@ export class FLVSource implements AudioSource {
   private _scheduleReconnect(): void {
     if (this.stopped) return
 
-    const delay = Math.min(
-      this.retryBase * Math.pow(2, this.retryCount),
-      this.maxRetryDelay
-    )
+    const delay = Math.min(this.retryBase * Math.pow(2, this.retryCount), this.maxRetryDelay)
     this.retryCount++
     console.log(`[FLVSource] ${delay / 1000}s 后重连 (第 ${this.retryCount} 次)`)
 

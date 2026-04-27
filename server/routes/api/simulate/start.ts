@@ -14,8 +14,8 @@ export default defineEventHandler(async (event) => {
         data: {
           success: false,
           error: 'delay must be between 500 and 10000 milliseconds',
-          code: 'INVALID_PARAMETER'
-        }
+          code: 'INVALID_PARAMETER',
+        },
       })
     }
   }
@@ -30,8 +30,8 @@ export default defineEventHandler(async (event) => {
       data: {
         success: false,
         error: 'Simulation is already running',
-        code: 'SIMULATION_ALREADY_RUNNING'
-      }
+        code: 'SIMULATION_ALREADY_RUNNING',
+      },
     })
   }
 
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
     message: 'Simulation started',
     config: {
       optimizationDelay: simulationState.optimizationDelay,
-      delayRandomRange: simulationState.delayRandomRange
-    }
+      delayRandomRange: simulationState.delayRandomRange,
+    },
   }
 })

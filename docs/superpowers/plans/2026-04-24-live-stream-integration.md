@@ -16,43 +16,44 @@
 
 ### 新建文件
 
-| 文件 | 职责 |
-|------|------|
-| `types/ai.ts` | AIResult 接口定义 |
-| `server/utils/audio-source/base.ts` | AudioSource 抽象接口和 LiveTransState 类型 |
-| `server/utils/audio-source/flv.ts` | FLVSource：FFmpeg 拉流 + 指数退避重连 |
-| `server/utils/audio-source/mic.ts` | MicSource 预留接口（空壳） |
-| `server/utils/ai-processor.ts` | AI 后处理（mock/real 开关） |
-| `server/utils/live-trans-manager.ts` | 直播转录管理器（协调 AudioSource + ASR + AI） |
-| `server/routes/api/live/start.ts` | POST 启动直播转录 |
-| `server/routes/api/live/stop.ts` | POST 停止直播转录 |
-| `server/routes/api/live/status.ts` | GET 获取状态 |
-| `server/routes/api/live/ai-config.ts` | GET/POST Mock AI 开关 |
-| `components/admin/LiveTransControl.vue` | 管理后台直播转录控制面板 |
+| 文件                                    | 职责                                          |
+| --------------------------------------- | --------------------------------------------- |
+| `types/ai.ts`                           | AIResult 接口定义                             |
+| `server/utils/audio-source/base.ts`     | AudioSource 抽象接口和 LiveTransState 类型    |
+| `server/utils/audio-source/flv.ts`      | FLVSource：FFmpeg 拉流 + 指数退避重连         |
+| `server/utils/audio-source/mic.ts`      | MicSource 预留接口（空壳）                    |
+| `server/utils/ai-processor.ts`          | AI 后处理（mock/real 开关）                   |
+| `server/utils/live-trans-manager.ts`    | 直播转录管理器（协调 AudioSource + ASR + AI） |
+| `server/routes/api/live/start.ts`       | POST 启动直播转录                             |
+| `server/routes/api/live/stop.ts`        | POST 停止直播转录                             |
+| `server/routes/api/live/status.ts`      | GET 获取状态                                  |
+| `server/routes/api/live/ai-config.ts`   | GET/POST Mock AI 开关                         |
+| `components/admin/LiveTransControl.vue` | 管理后台直播转录控制面板                      |
 
 ### 修改文件
 
-| 文件 | 改动 |
-|------|------|
-| `types/websocket.ts` | 新增 `status`、`ai-processed` 消息类型，更新 WSMessage 联合 |
-| `server/utils/asr-bridge.ts` | 添加 onReadyCallback + AI 后处理集成 |
-| `composables/useSubtitles.ts` | 处理 `ai-processed` 消息 |
-| `pages/admin.vue` | 添加 LiveTransControl 组件 |
-| `asr/providers/gguf/provider.py` | 添加前置静音过滤 |
+| 文件                             | 改动                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| `types/websocket.ts`             | 新增 `status`、`ai-processed` 消息类型，更新 WSMessage 联合 |
+| `server/utils/asr-bridge.ts`     | 添加 onReadyCallback + AI 后处理集成                        |
+| `composables/useSubtitles.ts`    | 处理 `ai-processed` 消息                                    |
+| `pages/admin.vue`                | 添加 LiveTransControl 组件                                  |
+| `asr/providers/gguf/provider.py` | 添加前置静音过滤                                            |
 
 ### 删除文件
 
-| 文件 | 原因 |
-|------|------|
-| `server/utils/stream-manager.ts` | 被 live-trans-manager + audio-source 替代 |
-| `server/routes/api/stream/start.ts` | 被 /api/live/start 替代 |
-| `server/routes/api/stream/stop.ts` | 被 /api/live/stop 替代 |
+| 文件                                | 原因                                      |
+| ----------------------------------- | ----------------------------------------- |
+| `server/utils/stream-manager.ts`    | 被 live-trans-manager + audio-source 替代 |
+| `server/routes/api/stream/start.ts` | 被 /api/live/start 替代                   |
+| `server/routes/api/stream/stop.ts`  | 被 /api/live/stop 替代                    |
 
 ---
 
 ### Task 1: 类型定义
 
 **Files:**
+
 - Create: `types/ai.ts`
 - Modify: `types/websocket.ts`
 
@@ -163,6 +164,7 @@ git commit -m "feat: 添加直播转录相关类型定义"
 ### Task 2: AudioSource 抽象与 FLVSource 实现
 
 **Files:**
+
 - Create: `server/utils/audio-source/base.ts`
 - Create: `server/utils/audio-source/flv.ts`
 - Create: `server/utils/audio-source/mic.ts`
@@ -252,13 +254,18 @@ export class FLVSource implements AudioSource {
     console.log(`[FLVSource] 连接 ${this.url}`)
 
     this.ffmpeg = spawn('ffmpeg', [
-      '-i', this.url,
+      '-i',
+      this.url,
       '-vn',
-      '-acodec', 'pcm_s16le',
-      '-ar', '16000',
-      '-ac', '1',
-      '-f', 's16le',
-      'pipe:1'
+      '-acodec',
+      'pcm_s16le',
+      '-ar',
+      '16000',
+      '-ac',
+      '1',
+      '-f',
+      's16le',
+      'pipe:1',
     ])
 
     this.ffmpeg.stdout?.on('data', (chunk: Buffer) => {
@@ -294,10 +301,7 @@ export class FLVSource implements AudioSource {
   private _scheduleReconnect(): void {
     if (this.stopped) return
 
-    const delay = Math.min(
-      this.retryBase * Math.pow(2, this.retryCount),
-      this.maxRetryDelay
-    )
+    const delay = Math.min(this.retryBase * Math.pow(2, this.retryCount), this.maxRetryDelay)
     this.retryCount++
     console.log(`[FLVSource] ${delay / 1000}s 后重连 (第 ${this.retryCount} 次)`)
 
@@ -352,6 +356,7 @@ git commit -m "feat: 实现 AudioSource 抽象接口和 FLVSource"
 ### Task 3: AI Processor
 
 **Files:**
+
 - Create: `server/utils/ai-processor.ts`
 
 - [ ] **Step 1: 创建 `server/utils/ai-processor.ts`**
@@ -370,7 +375,7 @@ export function isMockAI(): boolean {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function mockProcess(text: string): Promise<AIResult> {
@@ -378,7 +383,7 @@ async function mockProcess(text: string): Promise<AIResult> {
 
   return {
     optimizedText: `润色：${text}`,
-    enText: `翻译：${text}`
+    enText: `翻译：${text}`,
   }
 }
 
@@ -412,6 +417,7 @@ git commit -m "feat: 添加 AI 后处理器（mock 模式）"
 ### Task 4: ASR Bridge 改造
 
 **Files:**
+
 - Modify: `server/utils/asr-bridge.ts`
 
 - [ ] **Step 1: 修改 `server/utils/asr-bridge.ts`**
@@ -425,7 +431,12 @@ import type { WSMessage, WSCurrentData, WSConfirmedData } from '../../types/webs
 替换为：
 
 ```typescript
-import type { WSMessage, WSCurrentData, WSConfirmedData, WSAIProcessedData } from '../../types/websocket'
+import type {
+  WSMessage,
+  WSCurrentData,
+  WSConfirmedData,
+  WSAIProcessedData,
+} from '../../types/websocket'
 import { processAI } from './ai-processor'
 ```
 
@@ -525,6 +536,7 @@ git commit -m "feat: ASR Bridge 添加就绪回调和 AI 后处理集成"
 ### Task 5: LiveTransManager
 
 **Files:**
+
 - Create: `server/utils/live-trans-manager.ts`
 
 - [ ] **Step 1: 创建 `server/utils/live-trans-manager.ts`**
@@ -560,8 +572,8 @@ function _updateState(newState: LiveTransState, error?: string): void {
     data: {
       state,
       error,
-      reconnectCount: status?.reconnectCount
-    }
+      reconnectCount: status?.reconnectCount,
+    },
   })
 }
 
@@ -697,14 +709,14 @@ function getStatus(): {
     state,
     sourceType: audioSource ? 'flv' : null,
     reconnectCount: sourceStatus?.reconnectCount ?? 0,
-    uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
+    uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
   }
 }
 
 export const liveTransManager = {
   start,
   stop,
-  getStatus
+  getStatus,
 }
 ```
 
@@ -725,6 +737,7 @@ git commit -m "feat: 实现 LiveTransManager 直播转录管理器"
 ### Task 6: API 端点
 
 **Files:**
+
 - Create: `server/routes/api/live/start.ts`
 - Create: `server/routes/api/live/stop.ts`
 - Create: `server/routes/api/live/status.ts`
@@ -742,7 +755,7 @@ export default defineEventHandler(async (event) => {
   if (!sourceType || !['flv', 'mic'].includes(sourceType)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'sourceType must be "flv" or "mic"'
+      statusMessage: 'sourceType must be "flv" or "mic"',
     })
   }
 
@@ -750,7 +763,7 @@ export default defineEventHandler(async (event) => {
   if (status.state !== 'idle') {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Live transcription already running'
+      statusMessage: 'Live transcription already running',
     })
   }
 
@@ -758,7 +771,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     success,
-    sourceType
+    sourceType,
   }
 })
 ```
@@ -825,6 +838,7 @@ git commit -m "feat: 添加直播转录 API 端点"
 ### Task 7: 前端 — useSubtitles 处理 ai-processed
 
 **Files:**
+
 - Modify: `composables/useSubtitles.ts`
 
 - [ ] **Step 1: 在 `composables/useSubtitles.ts` 的 `import` 区域添加类型导入**
@@ -867,6 +881,7 @@ git commit -m "feat: 前端处理 ai-processed 消息更新字幕"
 ### Task 8: 前端 — LiveTransControl 组件
 
 **Files:**
+
 - Create: `components/admin/LiveTransControl.vue`
 
 - [ ] **Step 1: 创建 `components/admin/LiveTransControl.vue`**
@@ -875,13 +890,16 @@ git commit -m "feat: 前端处理 ai-processed 消息更新字幕"
 <script setup lang="ts">
 import type { LiveTransState } from '~/types/websocket'
 
-const props = withDefaults(defineProps<{
-  isRunning: boolean
-  isLoading: boolean
-}>(), {
-  isRunning: false,
-  isLoading: false
-})
+const props = withDefaults(
+  defineProps<{
+    isRunning: boolean
+    isLoading: boolean
+  }>(),
+  {
+    isRunning: false,
+    isLoading: false,
+  },
+)
 
 const emit = defineEmits<{
   start: []
@@ -903,7 +921,7 @@ const statusLabel = computed(() => {
     idle: '空闲',
     connecting: '连接中...',
     running: '运行中',
-    reconnecting: `重连中 (#${status.value?.reconnectCount ?? 0})`
+    reconnecting: `重连中 (#${status.value?.reconnectCount ?? 0})`,
   }
   return labels[s] ?? s
 })
@@ -914,7 +932,7 @@ const statusColor = computed(() => {
     idle: '#64748b',
     connecting: '#f59e0b',
     running: '#10b981',
-    reconnecting: '#f97316'
+    reconnecting: '#f97316',
   }
   return colors[s] ?? '#64748b'
 })
@@ -932,7 +950,7 @@ const canStop = computed(() => !props.isLoading && props.isRunning)
 
 const fetchStatus = async () => {
   try {
-    status.value = await $fetch('/api/live/status') as typeof status.value
+    status.value = (await $fetch('/api/live/status')) as typeof status.value
   } catch {
     // ignore
   }
@@ -940,7 +958,7 @@ const fetchStatus = async () => {
 
 const fetchAIConfig = async () => {
   try {
-    const res = await $fetch('/api/live/ai-config') as { useMockAI: boolean }
+    const res = (await $fetch('/api/live/ai-config')) as { useMockAI: boolean }
     useMockAI.value = res.useMockAI
   } catch {
     // ignore
@@ -958,10 +976,10 @@ const handleStop = async () => {
 const handleToggleMockAI = async () => {
   const newVal = !useMockAI.value
   try {
-    const res = await $fetch('/api/live/ai-config', {
+    const res = (await $fetch('/api/live/ai-config', {
       method: 'POST',
-      body: { useMockAI: newVal }
-    }) as { useMockAI: boolean }
+      body: { useMockAI: newVal },
+    })) as { useMockAI: boolean }
     useMockAI.value = res.useMockAI
   } catch {
     // ignore
@@ -991,10 +1009,7 @@ onUnmounted(() => {
         </svg>
       </div>
       <span class="panel-title">LIVE TRANS</span>
-      <span
-        v-if="isRunning"
-        class="status-badge active"
-      >LIVE</span>
+      <span v-if="isRunning" class="status-badge active">LIVE</span>
     </div>
 
     <div class="panel-content">
@@ -1020,11 +1035,7 @@ onUnmounted(() => {
       <!-- Mock AI 开关 -->
       <div class="form-row">
         <label class="form-label">MOCK AI</label>
-        <button
-          class="toggle-btn"
-          :class="{ active: useMockAI }"
-          @click="handleToggleMockAI"
-        >
+        <button class="toggle-btn" :class="{ active: useMockAI }" @click="handleToggleMockAI">
           <span class="toggle-track">
             <span class="toggle-thumb"></span>
           </span>
@@ -1042,12 +1053,7 @@ onUnmounted(() => {
         >
           START LIVE
         </button>
-        <button
-          v-else
-          class="action-btn stop"
-          :disabled="!canStop"
-          @click="handleStop"
-        >
+        <button v-else class="action-btn stop" :disabled="!canStop" @click="handleStop">
           STOP
         </button>
       </div>
@@ -1276,8 +1282,13 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 </style>
 ```
@@ -1299,6 +1310,7 @@ git commit -m "feat: 添加 LiveTransControl 管理后台组件"
 ### Task 9: 前端 — admin.vue 集成
 
 **Files:**
+
 - Modify: `pages/admin.vue`
 
 - [ ] **Step 1: 在 `pages/admin.vue` 的 `<script setup>` 中添加直播转录相关状态和处理函数**
@@ -1320,7 +1332,7 @@ const handleLiveStart = async () => {
   try {
     await $fetch('/api/live/start', {
       method: 'POST',
-      body: { sourceType: 'flv' }
+      body: { sourceType: 'flv' },
     })
     liveIsRunning.value = true
   } catch (error) {
@@ -1374,6 +1386,7 @@ git commit -m "feat: 管理后台集成直播转录控制面板"
 ### Task 10: Python 前置静音过滤
 
 **Files:**
+
 - Modify: `asr/providers/gguf/provider.py`
 
 - [ ] **Step 1: 在 `asr/providers/gguf/provider.py` 的 `_process_loop` 方法中，在 `audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0` 之后、`buffer = np.concatenate([buffer, audio])` 之前插入前置静音过滤代码**
@@ -1414,6 +1427,7 @@ git commit -m "feat: 添加前置 VAD 静音过滤"
 ### Task 11: 清理废弃文件
 
 **Files:**
+
 - Delete: `server/utils/stream-manager.ts`
 - Delete: `server/routes/api/stream/start.ts`
 - Delete: `server/routes/api/stream/stop.ts`
@@ -1468,12 +1482,14 @@ curl http://localhost:3000/api/live/ai-config
 ```
 
 Expected:
+
 - status 返回 `{ state: 'idle', ... }`
 - ai-config 返回 `{ useMockAI: true/false }`
 
 - [ ] **Step 5: 验证前端 WebSocket 消息处理**
 
 在管理后台 WS EVENT TEST 面板发送 `ai-processed` 消息：
+
 - MESSAGE TYPE: 选择 `confirmed`（临时用 confirmed 测试，改为 ai-processed）
 - 填写 id、optimizedText、enText
 

@@ -3,7 +3,7 @@ import type { WSMessage, AudioSourceCommandData, TranscriptionStatusData } from 
 import { asrConfigToCamel } from '~/types/asr'
 import type { ASRConfig } from '~/types/asr'
 
-const props = defineProps<{
+defineProps<{
   connectionCount: number
   subtitleCount: number
 }>()
@@ -40,7 +40,7 @@ const { send: wsSend } = useWebSocket({
         syncASRConfig(ts.asrConfig)
       }
     }
-  }
+  },
 })
 
 // ─── Audio source ──────────────────────────────────────────
@@ -88,7 +88,7 @@ const availableProviders = ref<string[]>(['gguf'])
 function sliderToGain(s: number): number {
   if (s <= 0) return 0
   if (s <= 5) return Math.pow(10, (s / 5 - 1) * 3)
-  return 1 + (s - 5) / 5 * 9
+  return 1 + ((s - 5) / 5) * 9
 }
 
 function gainToPercent(s: number): string {
@@ -121,7 +121,7 @@ const stepLabels: Record<string, string> = {
   'source-ready': '音频源就绪',
   'stopping-source': '停止音频源...',
   'stopping-bridge': '断开引擎...',
-  'stopping-service': '停止服务...'
+  'stopping-service': '停止服务...',
 }
 
 // ─── State derived ─────────────────────────────────────────
@@ -168,7 +168,7 @@ async function enumerateDevices() {
   devicesReady.value = 'loading'
   try {
     const allDevices = await navigator.mediaDevices.enumerateDevices()
-    devices.value = allDevices.filter(d => d.kind === 'audioinput')
+    devices.value = allDevices.filter((d) => d.kind === 'audioinput')
     devicesReady.value = devices.value.length > 0 ? 'ready' : 'empty'
     if (devices.value.length > 0 && !selectedDeviceId.value) {
       selectedDeviceId.value = devices.value[0].deviceId
@@ -196,12 +196,14 @@ async function startMicCapture(sendAudio = true) {
     noiseSuppression: advancedSettings.value.noiseSuppression,
     targetSampleRate: advancedSettings.value.targetSampleRate,
     chunkDurationMs: advancedSettings.value.chunkDurationMs,
-    onAudioChunk: sendAudio ? (base64Pcm) => {
-      wsSend({ type: 'audio', data: base64Pcm })
-    } : undefined,
+    onAudioChunk: sendAudio
+      ? (base64Pcm) => {
+          wsSend({ type: 'audio', data: base64Pcm })
+        }
+      : undefined,
     onError: (msg) => {
       setStatus(msg, 'error')
-    }
+    },
   })
   capture.volume.value = sliderToGain(micVolume.value)
   audioCapture.value = capture
@@ -353,7 +355,7 @@ function handleSourceSelect(newSource: 'mic' | 'stream') {
   if (transcription.state.value === 'running') {
     transcription.switchSource({
       source: newSource,
-      ...(newSource === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {})
+      ...(newSource === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {}),
     })
   }
   source.value = newSource
@@ -380,9 +382,13 @@ watch(transcription.state, (s) => {
 })
 
 // 连接数和字幕数同步到父组件
-watch([transcription.connectionCount, transcription.subtitleCount], ([cc, sc]) => {
-  emit('counts-update', cc, sc)
-}, { immediate: true })
+watch(
+  [transcription.connectionCount, transcription.subtitleCount],
+  ([cc, sc]) => {
+    emit('counts-update', cc, sc)
+  },
+  { immediate: true },
+)
 
 // ─── Lifecycle ─────────────────────────────────────────────
 onMounted(() => {
@@ -404,9 +410,9 @@ onUnmounted(() => {
     <div class="panel-header">
       <div class="panel-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="22"/>
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="22" />
         </svg>
       </div>
       <span class="panel-title">转录控制</span>
@@ -459,11 +465,16 @@ onUnmounted(() => {
         <div class="form-row">
           <label class="form-label">
             音量
-            <span class="volume-value"><ClientOnly>{{ gainToPercent(micVolume) }}</ClientOnly></span>
+            <span class="volume-value"
+              ><ClientOnly>{{ gainToPercent(micVolume) }}</ClientOnly></span
+            >
           </label>
           <input
-            type="range" min="0" max="10" step="0.1"
             v-model.number="micVolume"
+            type="range"
+            min="0"
+            max="10"
+            step="0.1"
             class="volume-bar"
           />
         </div>
@@ -473,12 +484,7 @@ onUnmounted(() => {
       <template v-if="source === 'stream'">
         <div class="form-row">
           <label class="form-label">流地址</label>
-          <input
-            v-model="streamUrl"
-            type="text"
-            class="form-input"
-            placeholder="默认"
-          />
+          <input v-model="streamUrl" type="text" class="form-input" placeholder="默认" />
         </div>
       </template>
 
@@ -494,13 +500,17 @@ onUnmounted(() => {
             <span class="status-dot" :style="{ background: stateColor }"></span>
             <span class="status-state-text" :class="stateClass">{{ stateLabel }}</span>
           </div>
-          <span v-if="transcription.uptime.value > 0" class="status-uptime">{{ formatUptime(transcription.uptime.value) }}</span>
+          <span v-if="transcription.uptime.value > 0" class="status-uptime">{{
+            formatUptime(transcription.uptime.value)
+          }}</span>
         </div>
 
         <!-- Progress step -->
         <div v-if="transcription.currentStep.value" class="progress-step">
           <div class="progress-spinner"></div>
-          <span>{{ stepLabels[transcription.currentStep.value] || transcription.currentStep.value }}</span>
+          <span>{{
+            stepLabels[transcription.currentStep.value] || transcription.currentStep.value
+          }}</span>
         </div>
 
         <!-- Audio / Recognition sub-status -->
@@ -521,7 +531,7 @@ onUnmounted(() => {
               :disabled="audioLoading || isTransitioning"
               @click="toggleAudio"
             >
-              {{ audioLoading ? '...' : (transcription.audio.value.active ? '停止' : '启动') }}
+              {{ audioLoading ? '...' : transcription.audio.value.active ? '停止' : '启动' }}
             </button>
           </div>
           <div class="sub-status-row">
@@ -530,9 +540,15 @@ onUnmounted(() => {
               <span
                 class="sub-dot"
                 :class="{ active: transcription.recognition.value.active }"
-                :style="{ background: transcription.recognition.value.active ? '#22d3ee' : '#94a3b8' }"
+                :style="{
+                  background: transcription.recognition.value.active ? '#22d3ee' : '#94a3b8',
+                }"
               ></span>
-              {{ transcription.recognition.value.active ? '运行中' : (transcription.recognition.value.detail || '已停止') }}
+              {{
+                transcription.recognition.value.active
+                  ? '运行中'
+                  : transcription.recognition.value.detail || '已停止'
+              }}
             </span>
             <button
               class="sub-toggle-btn"
@@ -540,7 +556,13 @@ onUnmounted(() => {
               :disabled="recognitionLoading || isTransitioning"
               @click="toggleRecognition"
             >
-              {{ recognitionLoading ? '...' : (transcription.recognition.value.active ? '停止' : '启动') }}
+              {{
+                recognitionLoading
+                  ? '...'
+                  : transcription.recognition.value.active
+                    ? '停止'
+                    : '启动'
+              }}
             </button>
           </div>
         </div>
@@ -548,9 +570,9 @@ onUnmounted(() => {
         <!-- Error message -->
         <div v-if="transcription.error.value" class="error-message">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span>{{ transcription.error.value }}</span>
         </div>
@@ -570,15 +592,21 @@ onUnmounted(() => {
 
       <!-- Status Message (audio source related) -->
       <div v-if="statusMessage" class="status-message" :class="statusType">
-        <svg v-if="statusType === 'error'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        <svg
+          v-if="statusType === 'error'"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="16" x2="12" y2="12"/>
-          <line x1="12" y1="8" x2="12.01" y2="8"/>
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
         </svg>
         <span>{{ statusMessage }}</span>
       </div>
@@ -586,8 +614,15 @@ onUnmounted(() => {
       <!-- ── Advanced ────────────────────────────── -->
       <div class="advanced-row">
         <button class="advanced-toggle" @click="showAdvanced = !showAdvanced">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="toggle-icon" :class="{ rotated: showAdvanced }">
-            <polyline points="6 9 12 15 18 9"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class="toggle-icon"
+            :class="{ rotated: showAdvanced }"
+          >
+            <polyline points="6 9 12 15 18 9" />
           </svg>
           高级
         </button>
@@ -658,7 +693,7 @@ onUnmounted(() => {
         <!-- Echo cancellation (mic only) -->
         <div v-if="source === 'mic'" class="form-row advanced-check-row">
           <label class="check-label">
-            <input type="checkbox" v-model="advancedSettings.echoCancellation" />
+            <input v-model="advancedSettings.echoCancellation" type="checkbox" />
             <span>回声消除</span>
           </label>
         </div>
@@ -666,7 +701,7 @@ onUnmounted(() => {
         <!-- Noise suppression (mic only) -->
         <div v-if="source === 'mic'" class="form-row advanced-check-row">
           <label class="check-label">
-            <input type="checkbox" v-model="advancedSettings.noiseSuppression" />
+            <input v-model="advancedSettings.noiseSuppression" type="checkbox" />
             <span>降噪</span>
           </label>
         </div>
@@ -770,7 +805,7 @@ onUnmounted(() => {
 
         <div class="form-row advanced-check-row">
           <label class="check-label">
-            <input type="checkbox" v-model="advancedSettings.sendPartial" />
+            <input v-model="advancedSettings.sendPartial" type="checkbox" />
             <span>中间结果</span>
           </label>
         </div>
@@ -818,7 +853,10 @@ onUnmounted(() => {
   color: #38bdf8;
 }
 
-.panel-icon svg { width: 20px; height: 20px; }
+.panel-icon svg {
+  width: 20px;
+  height: 20px;
+}
 
 .panel-title {
   font-family: 'Orbitron', sans-serif;
@@ -1016,11 +1054,21 @@ onUnmounted(() => {
   letter-spacing: 0.08em;
 }
 
-.state-idle { color: #94a3b8; }
-.state-starting { color: #fbbf24; }
-.state-running { color: #22d3ee; }
-.state-stopping { color: #fbbf24; }
-.state-error { color: #f87171; }
+.state-idle {
+  color: #94a3b8;
+}
+.state-starting {
+  color: #fbbf24;
+}
+.state-running {
+  color: #22d3ee;
+}
+.state-stopping {
+  color: #fbbf24;
+}
+.state-error {
+  color: #f87171;
+}
 
 .status-uptime {
   font-family: 'JetBrains Mono', monospace;
@@ -1051,7 +1099,9 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sub-status-grid {
@@ -1293,7 +1343,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.check-label input[type="checkbox"] {
+.check-label input[type='checkbox'] {
   accent-color: #38bdf8;
 }
 
@@ -1303,5 +1353,4 @@ onUnmounted(() => {
   color: #94a3b8;
   letter-spacing: 0.1em;
 }
-
 </style>

@@ -1,14 +1,19 @@
 """GGUF ASR Provider - 基于 Qwen3-ASR GGUF 的实时语音识别"""
+
 from __future__ import annotations
+
 import asyncio
 import concurrent.futures
+import contextlib
 import logging
-import numpy as np
 from collections import deque
 from pathlib import Path
+from typing import Any
 
-from asr.providers.base import ASRProvider
+import numpy as np
+
 from asr.protocol import ASRResult
+from asr.providers.base import ASRProvider
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +49,7 @@ class GGUFProvider(ASRProvider):
         self.sentence_min_len = config.get("sentence_min_len", 5)
         self.overlap_sec = config.get("overlap_sec", 0.5)
 
-        self._engine = None
+        self._engine: Any = None
         self._vad_session = None
         self._is_running = False
         self._process_task: asyncio.Task | None = None
@@ -79,9 +84,10 @@ class GGUFProvider(ASRProvider):
 
     def _vad_prob(self, audio: np.ndarray) -> float:
         """返回音频块的语音概率 (0.0~1.0)，audio 长度必须为 VAD_CHUNK_SIZE"""
+        assert self._vad_session is not None
         chunk = audio.reshape(1, -1)
         x = np.concatenate([self._vad_context, chunk], axis=1)
-        out, self._vad_state = self._vad_session.run(
+        out: Any = self._vad_session.run(
             None,
             {"input": x, "state": self._vad_state, "sr": np.array(SAMPLE_RATE, dtype=np.int64)},
         )
@@ -89,8 +95,8 @@ class GGUFProvider(ASRProvider):
         return float(out[0][0])
 
     async def _load_engine(self) -> None:
-        from .qwen_asr_gguf.inference.schema import ASREngineConfig
         from .qwen_asr_gguf.inference.asr import QwenASREngine
+        from .qwen_asr_gguf.inference.schema import ASREngineConfig
 
         engine_config = ASREngineConfig(
             model_dir=self.model_dir,
@@ -127,20 +133,16 @@ class GGUFProvider(ASRProvider):
 
     async def stop(self) -> None:
         self._is_running = False
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             self._audio_queue.put_nowait(b"")
-        except asyncio.QueueFull:
-            pass
 
         if self._process_task:
             try:
                 await asyncio.wait_for(self._process_task, timeout=30.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 self._process_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await self._process_task
-                except asyncio.CancelledError:
-                    pass
             self._process_task = None
 
         if self._engine:
@@ -194,13 +196,13 @@ class GGUFProvider(ASRProvider):
                     buffer = buffer[-overlap_samples:].copy() if overlap_samples > 0 else np.array([], dtype=np.float32)
                 should_transcribe = True
             elif buffer_len >= min_buffer_samples:
-                tail = buffer[-silence_frames * VAD_CHUNK_SIZE:]
+                tail = buffer[-silence_frames * VAD_CHUNK_SIZE :]
                 if len(tail) >= VAD_CHUNK_SIZE:
                     aligned_len = (len(tail) // VAD_CHUNK_SIZE) * VAD_CHUNK_SIZE
                     tail_aligned = tail[:aligned_len]
                     is_silence = True
                     for i in range(0, len(tail_aligned), VAD_CHUNK_SIZE):
-                        prob = self._vad_prob(tail_aligned[i:i + VAD_CHUNK_SIZE])
+                        prob = self._vad_prob(tail_aligned[i : i + VAD_CHUNK_SIZE])
                         if prob >= self.vad_threshold:
                             is_silence = False
                             consecutive_silence = 0
@@ -213,13 +215,13 @@ class GGUFProvider(ASRProvider):
                             should_transcribe = True
 
             if should_transcribe:
-                logger.info(f"转录 {buffer_len/SAMPLE_RATE:.1f}s 音频")
+                logger.info(f"转录 {buffer_len / SAMPLE_RATE:.1f}s 音频")
                 consecutive_silence = 0
                 self._reset_vad()
                 await self._transcribe_segment(segment)
 
         if len(buffer) > 0:
-            logger.info(f"处理剩余 {len(buffer)/SAMPLE_RATE:.1f}s 音频")
+            logger.info(f"处理剩余 {len(buffer) / SAMPLE_RATE:.1f}s 音频")
             await self._transcribe_segment(buffer)
 
     def _find_last_silence_gap(self, audio: np.ndarray) -> int | None:
@@ -231,15 +233,16 @@ class GGUFProvider(ASRProvider):
             return None
 
         # 临时用独立 state 计算概率，不影响主 VAD state
-        import copy
+        assert self._vad_session is not None
+
         state = np.zeros((2, 1, 128), dtype=np.float32)
         context = np.zeros((1, VAD_CONTEXT_SIZE), dtype=np.float32)
 
-        probs = []
+        probs: list[float] = []
         for i in range(0, aligned_len, VAD_CHUNK_SIZE):
-            chunk = audio[i:i + VAD_CHUNK_SIZE].reshape(1, -1)
+            chunk = audio[i : i + VAD_CHUNK_SIZE].reshape(1, -1)
             x = np.concatenate([context, chunk], axis=1)
-            out, state = self._vad_session.run(
+            out: Any = self._vad_session.run(
                 None,
                 {"input": x, "state": state, "sr": np.array(SAMPLE_RATE, dtype=np.int64)},
             )
@@ -275,31 +278,32 @@ class GGUFProvider(ASRProvider):
                 return
             partial_text.append(piece)
             result = ASRResult(type="partial", text="".join(partial_text), language="zh")
+            assert provider._loop is not None
+            assert provider._result_queue is not None
             provider._loop.call_soon_threadsafe(provider._result_queue.put_nowait, result)
 
         def _run_blocking():
+            assert self._engine is not None
             engine = self._engine
 
             audio_feature, _ = engine.encoder.encode(segment)
             prefix_text = "".join([m[1] for m in self._asr_memory])
-            combined_audio = np.concatenate(
-                [m[0] for m in self._asr_memory] + [audio_feature], axis=0
-            )
-            full_embd = engine._build_prompt_embd(
-                combined_audio, prefix_text, None, self.language
-            )
+            combined_audio = np.concatenate([m[0] for m in self._asr_memory] + [audio_feature], axis=0)
+            full_embd = engine._build_prompt_embd(combined_audio, prefix_text, None, self.language)
 
             result = engine._safe_decode(
-                full_embd, prefix_text, self.rollback_num,
-                is_last_chunk=True, temperature=self.temperature,
-                streaming=True, on_token=_on_token
+                full_embd,
+                prefix_text,
+                self.rollback_num,
+                is_last_chunk=True,
+                temperature=self.temperature,
+                streaming=True,
+                on_token=_on_token,
             )
             return (audio_feature, result.text)
 
         try:
-            audio_feature, text = await self._loop.run_in_executor(
-                self._thread_pool, _run_blocking
-            )
+            audio_feature, text = await self._loop.run_in_executor(self._thread_pool, _run_blocking)
             self._asr_memory.append((audio_feature, text))
             if text.strip():
                 self._emit(ASRResult(type="final", text=text, language="zh"))

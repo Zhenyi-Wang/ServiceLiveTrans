@@ -19,7 +19,7 @@ interface StartConfig extends ASRConfig {
 
 let state: OrchestratorState = 'idle'
 let currentConfig: StartConfig | null = null
-let completedSteps = new Set<string>()
+const completedSteps = new Set<string>()
 let errorDetail: string | null = null
 
 function broadcastProgress(step: TranscriptionProgressData['step']): void {
@@ -27,21 +27,20 @@ function broadcastProgress(step: TranscriptionProgressData['step']): void {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  stepName: string,
-  maxRetries = 3
-): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, stepName: string, maxRetries = 3): Promise<T> {
   const delays = [1000, 2000, 4000]
   for (let i = 0; i <= maxRetries; i++) {
     try {
       return await fn()
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (i === maxRetries) throw e
-      console.log(`[Orchestrator] ${stepName} 失败，${delays[i]! / 1000}s 后重试 (${i + 1}/${maxRetries}): ${e.message}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      console.log(
+        `[Orchestrator] ${stepName} 失败，${delays[i]! / 1000}s 后重试 (${i + 1}/${maxRetries}): ${msg}`,
+      )
       await delay(delays[i]!)
     }
   }
@@ -97,10 +96,22 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
   let bridgeTimeout: ReturnType<typeof setTimeout> | null = null
   const cleanup = () => {
     cancelled = true
-    if (checkInterval) { clearInterval(checkInterval); checkInterval = null }
-    if (readyInterval) { clearInterval(readyInterval); readyInterval = null }
-    if (modelTimeout) { clearTimeout(modelTimeout); modelTimeout = null }
-    if (bridgeTimeout) { clearTimeout(bridgeTimeout); bridgeTimeout = null }
+    if (checkInterval) {
+      clearInterval(checkInterval)
+      checkInterval = null
+    }
+    if (readyInterval) {
+      clearInterval(readyInterval)
+      readyInterval = null
+    }
+    if (modelTimeout) {
+      clearTimeout(modelTimeout)
+      modelTimeout = null
+    }
+    if (bridgeTimeout) {
+      clearTimeout(bridgeTimeout)
+      bridgeTimeout = null
+    }
   }
 
   return new Promise<void>((resolve, reject) => {
@@ -165,8 +176,10 @@ async function startAudioSource(config: StartConfig): Promise<void> {
 }
 
 function updateOverallState(): void {
-  const audioActive = transcriptionManager.hasStreamSource() || transcriptionManager.getSource() !== null
-  const recognitionActive = transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady()
+  const audioActive =
+    transcriptionManager.hasStreamSource() || transcriptionManager.getSource() !== null
+  const recognitionActive =
+    transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady()
 
   if (audioActive || recognitionActive) {
     state = 'running'
@@ -249,12 +262,13 @@ export const orchestrator = {
       transcriptionState.source = 'asr'
 
       return { success: true }
-    } catch (e: any) {
-      console.error(`[Orchestrator] 启动失败: ${e.message}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`[Orchestrator] 启动失败: ${msg}`)
       state = 'error'
-      errorDetail = e.message
+      errorDetail = msg
       transcriptionManager.setManagerState('error')
-      return { success: false, error: e.message }
+      return { success: false, error: msg }
     }
   },
 
@@ -263,7 +277,10 @@ export const orchestrator = {
     await doStop()
   },
 
-  async startAudioOnly(config: { source: SourceType; streamUrl?: string }): Promise<{ success: boolean; error?: string }> {
+  async startAudioOnly(config: {
+    source: SourceType
+    streamUrl?: string
+  }): Promise<{ success: boolean; error?: string }> {
     if (transcriptionManager.getSource() !== null) {
       return { success: false, error: '音频源已在运行' }
     }
@@ -281,9 +298,10 @@ export const orchestrator = {
       await startAudioSource(currentConfig)
       updateOverallState()
       return { success: true }
-    } catch (e: any) {
-      console.error(`[Orchestrator] 启动音频源失败: ${e.message}`)
-      return { success: false, error: e.message }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`[Orchestrator] 启动音频源失败: ${msg}`)
+      return { success: false, error: msg }
     }
   },
 
@@ -323,9 +341,10 @@ export const orchestrator = {
 
       updateOverallState()
       return { success: true }
-    } catch (e: any) {
-      console.error(`[Orchestrator] 启动识别服务失败: ${e.message}`)
-      return { success: false, error: e.message }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`[Orchestrator] 启动识别服务失败: ${msg}`)
+      return { success: false, error: msg }
     }
   },
 
@@ -339,7 +358,10 @@ export const orchestrator = {
     updateOverallState()
   },
 
-  async switchSource(newSource: SourceType, streamUrl?: string): Promise<{ success: boolean; error?: string }> {
+  async switchSource(
+    newSource: SourceType,
+    streamUrl?: string,
+  ): Promise<{ success: boolean; error?: string }> {
     if (state !== 'running') {
       return { success: false, error: '不在运行状态' }
     }
@@ -369,9 +391,10 @@ export const orchestrator = {
       }
 
       return { success: true }
-    } catch (e: any) {
-      console.error(`[Orchestrator] 切换源失败: ${e.message}`)
-      return { success: false, error: e.message }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`[Orchestrator] 切换源失败: ${msg}`)
+      return { success: false, error: msg }
     }
   },
 
@@ -383,7 +406,7 @@ export const orchestrator = {
     return {
       state,
       source: currentConfig?.source ?? null,
-      error: errorDetail
+      error: errorDetail,
     }
   },
 
@@ -414,8 +437,9 @@ export const orchestrator = {
       state = 'running'
       transcriptionManager.setManagerState('running')
       console.log('[Orchestrator] 自动恢复成功')
-    } catch (e: any) {
-      console.error(`[Orchestrator] 自动恢复失败: ${e.message}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`[Orchestrator] 自动恢复失败: ${msg}`)
       try {
         completedSteps.delete('service')
         completedSteps.delete('bridge')
@@ -430,12 +454,13 @@ export const orchestrator = {
         state = 'running'
         transcriptionManager.setManagerState('running')
         console.log('[Orchestrator] 重启服务后恢复成功')
-      } catch (e2: any) {
-        console.error(`[Orchestrator] 重启服务后恢复仍失败: ${e2.message}`)
+      } catch (e2: unknown) {
+        const msg2 = e2 instanceof Error ? e2.message : String(e2)
+        console.error(`[Orchestrator] 重启服务后恢复仍失败: ${msg2}`)
         state = 'error'
-        errorDetail = e2.message
+        errorDetail = msg2
         transcriptionManager.setManagerState('error')
       }
     }
-  }
+  },
 }

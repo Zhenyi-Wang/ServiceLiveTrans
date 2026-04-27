@@ -4,5 +4,5 @@ export const transcriptionState: TranscriptionState = {
   isActive: false,
   source: null,
   currentSubtitle: null,
-  confirmedSubtitles: []
+  confirmedSubtitles: [],
 }

@@ -1,6 +1,9 @@
 """模型生命周期管理：按需加载、空闲卸载、OOM 降级"""
+
 from __future__ import annotations
+
 import asyncio
+import contextlib
 import gc
 import logging
 import time
@@ -13,6 +16,7 @@ logger = logging.getLogger(__name__)
 def create_provider(provider: str, model_name: str, config_loader) -> ASRProvider:
     if provider == "gguf":
         from asr.providers.gguf import GGUFProvider
+
         return GGUFProvider(config_loader.gguf_config())
     else:
         raise ValueError(f"Unknown provider: {provider}")
@@ -21,10 +25,11 @@ def create_provider(provider: str, model_name: str, config_loader) -> ASRProvide
 def get_available_providers() -> list[str]:
     providers = []
     try:
-        import onnxruntime
-        import gguf
-        providers.append("gguf")
-    except ImportError:
+        import importlib.util
+
+        if importlib.util.find_spec("gguf") is not None and importlib.util.find_spec("onnxruntime") is not None:
+            providers.append("gguf")
+    except ModuleNotFoundError:
         pass
     return providers
 
@@ -60,6 +65,7 @@ class ModelManager:
             gc.collect()
             try:
                 import torch
+
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
             except ImportError:
@@ -112,7 +118,5 @@ class ModelManager:
         await self.unload()
         if self._monitor_task:
             self._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass

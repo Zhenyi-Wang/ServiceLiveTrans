@@ -1,4 +1,9 @@
-import type { WSMessage, WSInitData, TranscriptionStatusData, TranscriptionProgressData } from '~/types/websocket'
+import type {
+  WSMessage,
+  WSInitData,
+  TranscriptionStatusData,
+  TranscriptionProgressData,
+} from '~/types/websocket'
 import type { ASRConfig } from '~/types/asr'
 
 interface TranscriptionAudioState {
@@ -100,17 +105,22 @@ export function useTranscription() {
     try {
       await $fetch('/api/transcription/start', {
         method: 'POST',
-        body: config
+        body: config,
       })
-    } catch (e: any) {
-      error.value = e?.data?.message || e.message || '启动失败'
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '启动失败'
+      const fetchErr =
+        e && typeof e === 'object' && 'data' in e
+          ? (e as { data?: { message?: string } }).data?.message
+          : undefined
+      error.value = fetchErr || msg
     }
   }
 
   async function stopTranscription() {
     try {
       await $fetch('/api/transcription/stop', { method: 'POST' })
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('停止失败:', e)
     }
   }
@@ -119,17 +129,22 @@ export function useTranscription() {
     try {
       await $fetch('/api/transcription/audio-start', {
         method: 'POST',
-        body: config
+        body: config,
       })
-    } catch (e: any) {
-      error.value = e?.data?.message || e.message || '启动音频源失败'
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '启动音频源失败'
+      const fetchErr =
+        e && typeof e === 'object' && 'data' in e
+          ? (e as { data?: { message?: string } }).data?.message
+          : undefined
+      error.value = fetchErr || msg
     }
   }
 
   async function stopAudioOnly() {
     try {
       await $fetch('/api/transcription/audio-stop', { method: 'POST' })
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('停止音频源失败:', e)
     }
   }
@@ -138,17 +153,22 @@ export function useTranscription() {
     try {
       await $fetch('/api/transcription/recognition-start', {
         method: 'POST',
-        body: config
+        body: config,
       })
-    } catch (e: any) {
-      error.value = e?.data?.message || e.message || '启动识别服务失败'
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '启动识别服务失败'
+      const fetchErr =
+        e && typeof e === 'object' && 'data' in e
+          ? (e as { data?: { message?: string } }).data?.message
+          : undefined
+      error.value = fetchErr || msg
     }
   }
 
   async function stopRecognitionOnly() {
     try {
       await $fetch('/api/transcription/recognition-stop', { method: 'POST' })
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('停止识别服务失败:', e)
     }
   }
@@ -157,10 +177,15 @@ export function useTranscription() {
     try {
       await $fetch('/api/transcription/switch-source', {
         method: 'POST',
-        body: config
+        body: config,
       })
-    } catch (e: any) {
-      error.value = e?.data?.message || e.message || '切换失败'
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '切换失败'
+      const fetchErr =
+        e && typeof e === 'object' && 'data' in e
+          ? (e as { data?: { message?: string } }).data?.message
+          : undefined
+      error.value = fetchErr || msg
     }
   }
 
@@ -184,6 +209,6 @@ export function useTranscription() {
     stopAudioOnly,
     startRecognitionOnly,
     stopRecognitionOnly,
-    switchSource
+    switchSource,
   }
 }

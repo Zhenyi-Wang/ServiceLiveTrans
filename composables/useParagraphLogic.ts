@@ -6,7 +6,7 @@ type SegmentGroup = ConfirmedSubtitle[]
 
 export function useParagraphLogic(
   confirmedSubtitles: Ref<ConfirmedSubtitle[]>,
-  maxParagraphLength: Ref<number>
+  maxParagraphLength: Ref<number>,
 ) {
   const getSegmentParagraphs = computed(() => {
     const paragraphs: SegmentGroup[] = []
@@ -27,7 +27,11 @@ export function useParagraphLogic(
         const sentenceEnds = ['。', '？', '！', '；', '.', '?', '!', ';']
 
         let accumulatedLength = 0
-        for (let i = currentSegments.length - 1; i >= Math.max(0, currentSegments.length - 10); i--) {
+        for (
+          let i = currentSegments.length - 1;
+          i >= Math.max(0, currentSegments.length - 10);
+          i--
+        ) {
           accumulatedLength += (currentSegments[i].optimizedText || currentSegments[i].text).length
           if (currentLength - accumulatedLength <= maxLength - 50) {
             break
@@ -52,7 +56,7 @@ export function useParagraphLogic(
 
         const removedLength = paragraphSegments.reduce(
           (sum, seg) => sum + (seg.optimizedText || seg.text).length,
-          0
+          0,
         )
         currentSegments = currentSegments.slice(splitIndex)
         currentLength -= removedLength
@@ -67,20 +71,20 @@ export function useParagraphLogic(
   })
 
   const getChineseParagraphs = computed(() => {
-    return getSegmentParagraphs.value.map(segmentGroup => {
-      return segmentGroup.map(seg => ({
+    return getSegmentParagraphs.value.map((segmentGroup) => {
+      return segmentGroup.map((seg) => ({
         text: seg.optimizedText || seg.text,
-        isOptimized: !!seg.optimizedText && seg.optimizedText !== seg.text
+        isOptimized: !!seg.optimizedText && seg.optimizedText !== seg.text,
       }))
     })
   })
 
   const getEnglishParagraphs = computed(() => {
-    return getSegmentParagraphs.value.map(segmentGroup => {
-      return segmentGroup.map(seg => ({
+    return getSegmentParagraphs.value.map((segmentGroup) => {
+      return segmentGroup.map((seg) => ({
         text: seg.enText || '...',
         isTranslating: !seg.enText,
-        hasContent: !!seg.enText
+        hasContent: !!seg.enText,
       }))
     })
   })
@@ -88,6 +92,6 @@ export function useParagraphLogic(
   return {
     getSegmentParagraphs,
     getChineseParagraphs,
-    getEnglishParagraphs
+    getEnglishParagraphs,
   }
 }

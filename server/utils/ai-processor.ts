@@ -11,7 +11,7 @@ export function isMockAI(): boolean {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function mockProcess(text: string): Promise<AIResult> {
@@ -19,7 +19,7 @@ async function mockProcess(text: string): Promise<AIResult> {
 
   return {
     optimizedText: `润色：${text}`,
-    enText: `翻译：${text}`
+    enText: `翻译：${text}`,
   }
 }
 

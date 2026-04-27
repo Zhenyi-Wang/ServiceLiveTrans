@@ -1,0 +1,49 @@
+repos:
+  # --- Python checks (conda env funasr) ---
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright (Python type check)
+        entry: /home/zhenyi/miniconda3/envs/funasr/bin/pyright
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+
+      - id: ruff-check
+        name: ruff check (Python lint)
+        entry: /home/zhenyi/miniconda3/envs/funasr/bin/ruff check
+        language: system
+        types: [python]
+        always_run: true
+
+      - id: ruff-format
+        name: ruff format --check (Python format)
+        entry: /home/zhenyi/miniconda3/envs/funasr/bin/ruff format --check
+        language: system
+        types: [python]
+        always_run: true
+
+  # --- Frontend checks ---
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (Vue/TS lint)
+        entry: npx eslint .
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: prettier
+        name: prettier --check (format check)
+        entry: npx prettier --check .
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: vue-tsc
+        name: vue-tsc --noEmit (TypeScript type check)
+        entry: npx vue-tsc --noEmit
+        language: system
+        pass_filenames: false
+        always_run: true

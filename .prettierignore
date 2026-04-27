@@ -1,0 +1,10 @@
+.nuxt
+.output
+dist
+.cache
+node_modules
+pnpm-lock.yaml
+asr/
+lib
+*.db
+public/audio-worklet-processor.js

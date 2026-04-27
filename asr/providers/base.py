@@ -1,7 +1,11 @@
 """ASR Provider 抽象基类"""
+
 from __future__ import annotations
+
 import asyncio
 from abc import ABC, abstractmethod
+from typing import Any
+
 from asr.protocol import ASRResult
 
 
@@ -15,6 +19,11 @@ class ASRProvider(ABC):
     def _emit(self, result: ASRResult) -> None:
         if self._result_queue is not None:
             self._result_queue.put_nowait(result)
+
+    def apply_config(self, config: dict[str, Any]) -> None:
+        """运行时热更新配置，子类可覆写"""
+        for key, value in config.items():
+            setattr(self, key, value)
 
     @abstractmethod
     async def start(self) -> None:

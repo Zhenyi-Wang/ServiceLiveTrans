@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { CurrentSubtitle } from '~/types/subtitle'
-import type { Ref } from 'vue'
 
 type ChineseSegment = {
   text: string
@@ -25,37 +24,32 @@ interface Props {
   isFullscreen: boolean
   isWaitingForService: boolean
   autoScroll: boolean
-  scrollContainerRef?: Ref<HTMLElement | null>
 }
 
 const props = defineProps<Props>()
 
-defineEmits<{
+const emit = defineEmits<{
   fullscreen: []
   'font-size-change': [value: number]
   scroll: [event: Event]
   'toggle-auto-scroll': []
   'scroll-to-bottom': []
+  'container-ref': [el: HTMLElement | null]
 }>()
 
 const welcomeMessage = computed(() => {
-  return props.language === 'chinese'
-    ? '等待字幕数据...'
-    : 'Waiting for subtitles...'
+  return props.language === 'chinese' ? '等待字幕数据...' : 'Waiting for subtitles...'
 })
 
 const sectionClasses = computed(() => ({
   'content-section': true,
-  'fullscreen': props.isFullscreen,
-  [`${props.language}-section`]: true
+  fullscreen: props.isFullscreen,
+  [`${props.language}-section`]: true,
 }))
 </script>
 
 <template>
-  <div
-    class="content-section"
-    :class="sectionClasses"
-  >
+  <div class="content-section" :class="sectionClasses">
     <ContentSectionHeader
       :title="title"
       :is-fullscreen="isFullscreen"
@@ -68,10 +62,7 @@ const sectionClasses = computed(() => ({
       @scroll-to-bottom="$emit('scroll-to-bottom')"
     />
 
-    <div
-      class="content-area"
-      :class="`${language}-content`"
-    >
+    <div class="content-area" :class="`${language}-content`">
       <!-- 欢迎信息 -->
       <div
         v-if="isWaitingForService && (!paragraphs || paragraphs.length === 0)"
@@ -86,8 +77,8 @@ const sectionClasses = computed(() => ({
         :language="language"
         :paragraphs="paragraphs"
         :font-size="fontSize"
-        :scroll-container-ref="scrollContainerRef"
-        @scroll="$emit('scroll', $event)"
+        @scroll="emit('scroll', $event)"
+        @container-ref="emit('container-ref', $event)"
       />
 
       <!-- 当前输入 -->

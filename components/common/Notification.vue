@@ -15,23 +15,23 @@ const typeStyles: Record<NotificationType, { border: string; icon: string; color
   success: {
     border: 'border-l-green-500',
     icon: 'i-heroicons-check-circle',
-    color: 'text-green-500'
+    color: 'text-green-500',
   },
   error: {
     border: 'border-l-red-500',
     icon: 'i-heroicons-x-circle',
-    color: 'text-red-500'
+    color: 'text-red-500',
   },
   warning: {
     border: 'border-l-yellow-500',
     icon: 'i-heroicons-exclamation-triangle',
-    color: 'text-yellow-500'
+    color: 'text-yellow-500',
   },
   info: {
     border: 'border-l-blue-500',
     icon: 'i-heroicons-information-circle',
-    color: 'text-blue-500'
-  }
+    color: 'text-blue-500',
+  },
 }
 
 const currentStyle = computed(() => typeStyles[props.notification.type])
@@ -39,21 +39,14 @@ const currentStyle = computed(() => typeStyles[props.notification.type])
 
 <template>
   <Transition name="notification">
-    <div
-      v-if="notification.visible"
-      class="notification"
-      :class="currentStyle.border"
-    >
+    <div v-if="notification.visible" class="notification" :class="currentStyle.border">
       <div class="notification-icon" :class="currentStyle.color">
         <UIcon :name="currentStyle.icon" class="w-5 h-5" />
       </div>
       <div class="notification-content">
         {{ notification.message }}
       </div>
-      <button
-        class="notification-close"
-        @click="emit('close')"
-      >
+      <button class="notification-close" @click="emit('close')">
         <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
       </button>
     </div>

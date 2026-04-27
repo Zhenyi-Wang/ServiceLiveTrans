@@ -50,7 +50,7 @@ function detectPythonPath(): string {
     const result = execSync('conda run -n funasr which python', {
       encoding: 'utf-8',
       timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     }).trim()
     if (result) {
       cachedPythonPath = result
@@ -61,7 +61,9 @@ function detectPythonPath(): string {
     // conda run 失败
   }
 
-  throw new Error('未找到 Python 环境。请设置 ASR_PYTHON_PATH 环境变量或安装 conda funasr/trans 环境。')
+  throw new Error(
+    '未找到 Python 环境。请设置 ASR_PYTHON_PATH 环境变量或安装 conda funasr/trans 环境。',
+  )
 }
 
 function isPortInUse(port: number): Promise<boolean> {
@@ -86,7 +88,7 @@ export async function startASRProcess(): Promise<{ pid: number } | null> {
         for (const pid of result.split('\n')) {
           process.kill(Number(pid.trim()), 'SIGTERM')
         }
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, 1000))
       }
     } catch {
       // lsof 失败，忽略

@@ -8,10 +8,10 @@
 
 ### 两套管理系统
 
-| 系统 | 管理模块 | 音频来源 | 适用场景 |
-|------|----------|----------|----------|
-| ASR Bridge | `asr-bridge.ts` | 前端 WebSocket 推送 | mic、file |
-| LiveTrans | `liveTransManager.ts` | 后端 FLVSource 拉取 | stream |
+| 系统       | 管理模块              | 音频来源            | 适用场景  |
+| ---------- | --------------------- | ------------------- | --------- |
+| ASR Bridge | `asr-bridge.ts`       | 前端 WebSocket 推送 | mic、file |
+| LiveTrans  | `liveTransManager.ts` | 后端 FLVSource 拉取 | stream    |
 
 两者各自维护独立的 ASR WebSocket 连接、独立的状态管理、独立的 transcriptionState 修改。`asr/start.ts` 里 stream 源临时调用了 `liveTransManager.start()`，是一种补丁而非真正的统一。
 
@@ -56,12 +56,14 @@
 ### 音频数据流
 
 **mic/file（前端推送）**：
+
 ```
 浏览器 AudioCapture/FilePlayer → WS {type:"audio"} → 服务端 ws.ts
   → TranscriptionManager.sendAudioChunk(base64Pcm) → ASR Bridge → ASR 服务
 ```
 
 **stream（后端拉取）**：
+
 ```
 FLVSource (ffmpeg) → pcm Buffer → TranscriptionManager.sendAudioChunk(base64Pcm) → ASR Bridge → ASR 服务
 ```
@@ -73,6 +75,7 @@ FLVSource (ffmpeg) → pcm Buffer → TranscriptionManager.sendAudioChunk(base64
 文件：`server/utils/transcription-manager.ts`
 
 职责：
+
 - 管理唯一的 ASR Bridge WebSocket 连接
 - 管理当前活跃的 AudioSource（server-side）
 - 提供统一的 start/stop/switchSource 接口
@@ -80,6 +83,7 @@ FLVSource (ffmpeg) → pcm Buffer → TranscriptionManager.sendAudioChunk(base64
 - 处理 ASR 结果广播
 
 接口：
+
 ```typescript
 type SourceType = 'mic' | 'file' | 'stream'
 
@@ -110,6 +114,7 @@ export const transcriptionManager = {
 ```
 
 关键行为：
+
 - `start('mic' | 'file')`：只连接 ASR Bridge，不创建 server-side AudioSource。音频由前端通过 WebSocket 推送。
 - `start('stream')`：连接 ASR Bridge + 创建 FLVSource 拉流。
 - `stop()`：断开 ASR Bridge + 停止 server-side AudioSource + 清空 transcriptionState。
@@ -163,21 +168,26 @@ if (data.type === 'audio' && data.data) {
 保留现有 API 路径以保持兼容，但内部都委托给 `transcriptionManager`：
 
 **`POST /api/asr/start`**（保留）：
+
 - `source: 'mic' | 'file'` → `transcriptionManager.start()`，不创建 server-side 音频源
 - `source: 'stream'` → `transcriptionManager.start()`，创建 FLVSource
 
 **`POST /api/asr/stop`**（保留）：
+
 - 统一调用 `transcriptionManager.stop()` + `stopASRProcess()`
 - 移除对 `liveTransManager` 的条件判断
 
 **`POST /api/live/start`**（保留）：
+
 - 委托给 `transcriptionManager.start({ source: 'stream', sourceType: 'flv' })`
 - 保持向后兼容
 
 **`POST /api/live/stop`**（保留）：
+
 - 委托给 `transcriptionManager.stop()`
 
 **`GET /api/asr/status`**（修改）：
+
 - 返回 `transcriptionManager.getStatus()`
 - 合并原来分散在 asr-bridge 和 liveTransManager 的状态
 
@@ -186,6 +196,7 @@ if (data.type === 'audio' && data.data) {
 #### 合并控制面板
 
 将 `ASRControlPanel` 和 `LiveTransControl` 合并为一个统一的 `TranscriptionControlPanel`：
+
 - 三种源选项：Microphone、File、Stream
 - Stream 源显示 URL 输入框
 - 统一的启动/停止按钮

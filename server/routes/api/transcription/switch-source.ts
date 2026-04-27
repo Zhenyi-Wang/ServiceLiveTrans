@@ -9,19 +9,19 @@ export default defineEventHandler(async (event) => {
   if (!source || !VALID_SOURCES.includes(source)) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
+      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`,
     })
   }
 
   const result = await orchestrator.switchSource(
-    source as typeof VALID_SOURCES[number],
-    streamUrl
+    source as (typeof VALID_SOURCES)[number],
+    streamUrl,
   )
 
   if (!result.success) {
     throw createError({
       statusCode: 500,
-      statusMessage: result.error || '切换失败'
+      statusMessage: result.error || '切换失败',
     })
   }
 

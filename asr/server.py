@@ -1,28 +1,28 @@
 """ASR WebSocket 服务入口"""
+
 from __future__ import annotations
+
 import asyncio
 import base64
 import http
 import json
 import logging
 import signal
-import sys
 
 import websockets
-from websockets.server import serve
+from websockets.asyncio.server import serve
 
 from asr.config import ASRConfig
-from asr.config_db import init_defaults, get, get_all, set_many
+from asr.config_db import get_all, init_defaults, set_many
 from asr.model_manager import ModelManager, get_available_providers
 from asr.protocol import (
     ASRResult,
-    ConfigMessage,
-    encode_message,
     ErrorMessage,
     LoadingEvent,
     ModelStatusResponse,
     ReadyEvent,
     UnloadedEvent,
+    encode_message,
 )
 
 logging.basicConfig(
@@ -42,6 +42,7 @@ def get_health_data() -> dict:
     gpu_used = 0
     try:
         import torch
+
         if torch.cuda.is_available():
             gpu_used = torch.cuda.memory_allocated() // (1024 * 1024)
     except ImportError:
@@ -73,10 +74,14 @@ async def handle_connection(websocket):
     logger.info(f"客户端连接: {websocket.remote_address}")
 
     available = get_available_providers()
-    await websocket.send(json.dumps({
-        "type": "ready",
-        "available_providers": available,
-    }))
+    await websocket.send(
+        json.dumps(
+            {
+                "type": "ready",
+                "available_providers": available,
+            }
+        )
+    )
 
     try:
         async for raw_message in websocket:
@@ -115,13 +120,22 @@ async def handle_connection(websocket):
 
 
 DYNAMIC_CONFIG_KEYS = (
-    "overlap_sec", "memory_chunks",
-    "vad_threshold", "vad_max_buffer_sec", "vad_min_buffer_sec", "vad_silence_ms",
-    "temperature", "language", "send_partial", "sentence_min_len", "rollback_num",
+    "overlap_sec",
+    "memory_chunks",
+    "vad_threshold",
+    "vad_max_buffer_sec",
+    "vad_min_buffer_sec",
+    "vad_silence_ms",
+    "temperature",
+    "language",
+    "send_partial",
+    "sentence_min_len",
+    "rollback_num",
 )
 
 
 async def handle_config(websocket, msg: dict):
+    assert manager is not None
     provider = msg.get("provider", "")
     model = msg.get("model", "")
     if not provider:
@@ -140,11 +154,7 @@ async def handle_config(websocket, msg: dict):
     await websocket.send(encode_message(LoadingEvent()))
     try:
         model_inst = await manager.ensure_loaded(provider, model)
-        if hasattr(model_inst, 'apply_config'):
-            model_inst.apply_config(dynamic_config)
-        else:
-            for key, value in dynamic_config.items():
-                setattr(model_inst, key, value)
+        model_inst.apply_config(dynamic_config)
         model_inst.set_result_queue(result_queue)
         await websocket.send(encode_message(ReadyEvent()))
         logger.info(f"Provider 就绪: {provider}, 动态配置: {dynamic_config}")
@@ -154,6 +164,7 @@ async def handle_config(websocket, msg: dict):
 
 
 async def handle_audio(msg: dict):
+    assert manager is not None
     data_b64 = msg.get("data", "")
     if not data_b64:
         return
@@ -169,21 +180,28 @@ async def handle_model_load(websocket, msg: dict):
 
 
 async def handle_model_unload(websocket):
+    assert manager is not None
     await manager.unload()
     await websocket.send(encode_message(UnloadedEvent()))
 
 
 async def handle_model_status(websocket):
+    assert manager is not None
     import torch
+
     gpu_used = 0
     if torch.cuda.is_available():
         gpu_used = torch.cuda.memory_allocated() // (1024 * 1024)
-    await websocket.send(encode_message(ModelStatusResponse(
-        loaded=manager.is_loaded,
-        provider=manager.current_provider or "",
-        gpu_used_mb=gpu_used,
-        idle_seconds=manager.idle_seconds,
-    )))
+    await websocket.send(
+        encode_message(
+            ModelStatusResponse(
+                loaded=manager.is_loaded,
+                provider=manager.current_provider or "",
+                gpu_used_mb=gpu_used,
+                idle_seconds=manager.idle_seconds,
+            )
+        )
+    )
 
 
 async def result_forwarder(websocket):
@@ -246,7 +264,14 @@ async def main():
         loop.add_signal_handler(sig, _signal_handler)
 
     logger.info(f"ASR 服务启动: ws://{config.server_host}:{config.server_port}")
-    async with serve(handler, config.server_host, config.server_port, ping_interval=None, ping_timeout=None, process_request=health_handler):
+    async with serve(
+        handler,
+        config.server_host,
+        config.server_port,
+        ping_interval=None,
+        ping_timeout=None,
+        process_request=health_handler,  # type: ignore[arg-type]
+    ):
         await stop
 
     logger.info("正在关闭...")

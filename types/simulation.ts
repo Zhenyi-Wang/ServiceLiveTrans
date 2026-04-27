@@ -25,5 +25,5 @@ export const DEFAULT_SIMULATION_STATE: SimulationState = {
   optimizationDelay: 2000,
   delayRandomRange: 1000,
   currentSubtitle: null,
-  confirmedSubtitles: []
+  confirmedSubtitles: [],
 }

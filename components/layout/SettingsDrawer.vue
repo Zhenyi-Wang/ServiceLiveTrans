@@ -28,25 +28,13 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div
-        v-if="show"
-        class="menu-overlay"
-        @click="$emit('close')"
-      >
+      <div v-if="show" class="menu-overlay" @click="$emit('close')">
         <Transition name="slide">
-          <div
-            v-if="show"
-            class="menu-panel"
-            @click.stop
-          >
+          <div v-if="show" class="menu-panel" @click.stop>
             <!-- 头部 -->
             <div class="menu-header">
               <h3>设置 | Settings</h3>
-              <button
-                class="menu-close-btn"
-                aria-label="关闭设置"
-                @click="$emit('close')"
-              >
+              <button class="menu-close-btn" aria-label="关闭设置" @click="$emit('close')">
                 <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
               </button>
             </div>
@@ -60,12 +48,18 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                 <div class="menu-item" @click="$emit('toggleDark')">
                   <div class="item-info">
                     <span class="item-icon">
-                      <UIcon :name="isDark ? 'i-heroicons-moon' : 'i-heroicons-sun'" class="w-5 h-5" />
+                      <UIcon
+                        :name="isDark ? 'i-heroicons-moon' : 'i-heroicons-sun'"
+                        class="w-5 h-5"
+                      />
                     </span>
                     <span class="item-label">主题 | Theme</span>
                   </div>
                   <div class="theme-toggle-btn">
-                    <UIcon :name="isDark ? 'i-heroicons-moon' : 'i-heroicons-sun'" class="w-6 h-6" />
+                    <UIcon
+                      :name="isDark ? 'i-heroicons-moon' : 'i-heroicons-sun'"
+                      class="w-6 h-6"
+                    />
                   </div>
                 </div>
 
@@ -81,8 +75,11 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                     <input
                       type="checkbox"
                       :checked="configAutoScroll"
-                      @change="$emit('toggleAutoScroll'); configAutoScroll && $emit('scrollToBottom')"
-                    >
+                      @change="
+                        $emit('toggleAutoScroll')
+                        configAutoScroll && $emit('scrollToBottom')
+                      "
+                    />
                     <span class="slider"></span>
                   </label>
                 </div>
@@ -100,7 +97,7 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                       type="checkbox"
                       :checked="configSyncScroll"
                       @change="$emit('toggleSyncScroll')"
-                    >
+                    />
                     <span class="slider"></span>
                   </label>
                 </div>
@@ -120,7 +117,7 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                       v-for="length in paragraphLengthOptions"
                       :key="length"
                       class="length-option"
-                      :class="{ 'active': configParagraphLength === length }"
+                      :class="{ active: configParagraphLength === length }"
                       @click="$emit('update:configParagraphLength', length)"
                     >
                       {{ length }}
@@ -140,7 +137,12 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                     <button
                       class="font-size-btn"
                       :disabled="configChineseFontSize <= 0.8"
-                      @click="$emit('update:configChineseFontSize', Math.max(0.8, configChineseFontSize - 0.1))"
+                      @click="
+                        $emit(
+                          'update:configChineseFontSize',
+                          Math.max(0.8, configChineseFontSize - 0.1),
+                        )
+                      "
                     >
                       <UIcon name="i-heroicons-minus" class="w-4 h-4" />
                     </button>
@@ -148,7 +150,12 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                     <button
                       class="font-size-btn"
                       :disabled="configChineseFontSize >= 2.0"
-                      @click="$emit('update:configChineseFontSize', Math.min(2.0, configChineseFontSize + 0.1))"
+                      @click="
+                        $emit(
+                          'update:configChineseFontSize',
+                          Math.min(2.0, configChineseFontSize + 0.1),
+                        )
+                      "
                     >
                       <UIcon name="i-heroicons-plus" class="w-4 h-4" />
                     </button>
@@ -167,7 +174,12 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                     <button
                       class="font-size-btn"
                       :disabled="configEnglishFontSize <= 0.8"
-                      @click="$emit('update:configEnglishFontSize', Math.max(0.8, configEnglishFontSize - 0.1))"
+                      @click="
+                        $emit(
+                          'update:configEnglishFontSize',
+                          Math.max(0.8, configEnglishFontSize - 0.1),
+                        )
+                      "
                     >
                       <UIcon name="i-heroicons-minus" class="w-4 h-4" />
                     </button>
@@ -175,7 +187,12 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                     <button
                       class="font-size-btn"
                       :disabled="configEnglishFontSize >= 2.0"
-                      @click="$emit('update:configEnglishFontSize', Math.min(2.0, configEnglishFontSize + 0.1))"
+                      @click="
+                        $emit(
+                          'update:configEnglishFontSize',
+                          Math.min(2.0, configEnglishFontSize + 0.1),
+                        )
+                      "
                     >
                       <UIcon name="i-heroicons-plus" class="w-4 h-4" />
                     </button>
@@ -348,7 +365,7 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
 
 .slider:before {
   position: absolute;
-  content: "";
+  content: '';
   height: 18px;
   width: 18px;
   left: 4px;

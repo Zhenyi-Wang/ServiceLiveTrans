@@ -8,6 +8,6 @@ export default defineEventHandler(() => {
   return {
     success: true,
     message: wasRunning ? 'Simulation stopped' : 'Simulation was not running',
-    wasRunning
+    wasRunning,
   }
 })

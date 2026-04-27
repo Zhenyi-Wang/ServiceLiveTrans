@@ -6,6 +6,6 @@ export default defineEventHandler(() => {
     isActive: transcriptionState.isActive,
     source: transcriptionState.source,
     connectionCount: getConnectionCount(),
-    subtitleCount: transcriptionState.confirmedSubtitles.length
+    subtitleCount: transcriptionState.confirmedSubtitles.length,
   }
 })

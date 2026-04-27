@@ -14,8 +14,8 @@ export default defineWebSocketHandler({
         current: transcriptionState.currentSubtitle?.text ?? null,
         confirmed: transcriptionState.confirmedSubtitles,
         transcriptionStatus: getStatusData(),
-        connectionCount: getConnectionCount()
-      }
+        connectionCount: getConnectionCount(),
+      },
     }
     sendTo(peer, initMessage)
 
@@ -44,5 +44,5 @@ export default defineWebSocketHandler({
   error(peer, error) {
     console.error(`WebSocket error: ${error}`)
     removeConnection(peer)
-  }
+  },
 })

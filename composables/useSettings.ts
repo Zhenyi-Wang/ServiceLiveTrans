@@ -11,7 +11,7 @@ export function useSettings() {
     attribute: 'class',
     valueDark: 'dark',
     valueLight: '',
-    initialValue: 'light'
+    initialValue: 'light',
   })
 
   const toggleDark = () => {
@@ -49,7 +49,7 @@ export function useSettings() {
   const paragraphLengthOptions = [
     { value: 100, label: '短' },
     { value: 150, label: '中' },
-    { value: 200, label: '长' }
+    { value: 200, label: '长' },
   ]
 
   // 字号设置
@@ -62,25 +62,29 @@ export function useSettings() {
 
   const increaseChineseFontSize = () => {
     if (configChineseFontSize.value < maxFontSize) {
-      configChineseFontSize.value = Math.round((configChineseFontSize.value + fontSizeStep) * 10) / 10
+      configChineseFontSize.value =
+        Math.round((configChineseFontSize.value + fontSizeStep) * 10) / 10
     }
   }
 
   const decreaseChineseFontSize = () => {
     if (configChineseFontSize.value > minFontSize) {
-      configChineseFontSize.value = Math.round((configChineseFontSize.value - fontSizeStep) * 10) / 10
+      configChineseFontSize.value =
+        Math.round((configChineseFontSize.value - fontSizeStep) * 10) / 10
     }
   }
 
   const increaseEnglishFontSize = () => {
     if (configEnglishFontSize.value < maxFontSize) {
-      configEnglishFontSize.value = Math.round((configEnglishFontSize.value + fontSizeStep) * 10) / 10
+      configEnglishFontSize.value =
+        Math.round((configEnglishFontSize.value + fontSizeStep) * 10) / 10
     }
   }
 
   const decreaseEnglishFontSize = () => {
     if (configEnglishFontSize.value > minFontSize) {
-      configEnglishFontSize.value = Math.round((configEnglishFontSize.value - fontSizeStep) * 10) / 10
+      configEnglishFontSize.value =
+        Math.round((configEnglishFontSize.value - fontSizeStep) * 10) / 10
     }
   }
 
@@ -95,7 +99,7 @@ export function useSettings() {
     '--chinese-font-size': `${configChineseFontSize.value}rem`,
     '--english-font-size': `${configEnglishFontSize.value}rem`,
     '--chinese-input-height': `${configChineseFontSize.value * 1.8}em`,
-    '--english-input-height': `${configEnglishFontSize.value * 1.6}em`
+    '--english-input-height': `${configEnglishFontSize.value * 1.6}em`,
   }))
 
   return {
@@ -133,6 +137,6 @@ export function useSettings() {
     canDecreaseEnglish,
 
     // CSS 变量
-    cssVariables
+    cssVariables,
   }
 }

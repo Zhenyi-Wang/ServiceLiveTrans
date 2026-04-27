@@ -49,7 +49,7 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
 }
 
 const SNAKE_TO_CAMEL: Record<string, string> = Object.fromEntries(
-  Object.entries(CAMEL_TO_SNAKE).map(([k, v]) => [v, k])
+  Object.entries(CAMEL_TO_SNAKE).map(([k, v]) => [v, k]),
 )
 
 /**

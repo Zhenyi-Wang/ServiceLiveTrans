@@ -6,7 +6,7 @@ export interface WaveformRendererOptions {
 
 export function useWaveformRenderer(
   canvasRef: Ref<HTMLCanvasElement | null>,
-  options: WaveformRendererOptions = {}
+  options: WaveformRendererOptions = {},
 ) {
   const color = options.color ?? '#38bdf8'
   const bgColor = options.backgroundColor ?? 'rgba(0, 0, 0, 0.2)'
@@ -26,7 +26,7 @@ export function useWaveformRenderer(
     currentAnalyser = analyserNode
 
     canvas.height = height
-    let width = canvas.clientWidth
+    const width = canvas.clientWidth
     if (width === 0) {
       requestAnimationFrame(() => drawRealtimeWaveform(analyserNode))
       return
@@ -132,6 +132,6 @@ export function useWaveformRenderer(
   return {
     drawRealtimeWaveform,
     drawStaticWaveform,
-    stopAnimation
+    stopAnimation,
   }
 }

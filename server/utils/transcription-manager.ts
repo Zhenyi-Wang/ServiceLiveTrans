@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws'
-import type { WSMessage, WSCurrentData, WSConfirmedData, TranscriptionStatusData } from '../../types/websocket'
+import type { WSCurrentData, WSConfirmedData, TranscriptionStatusData } from '../../types/websocket'
 import type { ASRConfigSnake } from '../../types/asr'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
@@ -44,7 +44,7 @@ let currentSource: SourceType | null = null
 
 // === ASR Bridge ===
 
-function scheduleBridgeReconnect(): void {
+function _scheduleBridgeReconnect(): void {
   if (reconnectTimer) return
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
@@ -71,7 +71,7 @@ function processResult(result: { type: string; text: string; language: string })
       text: result.text,
       enText: '',
       version: partialVersion,
-      enVersion: 0
+      enVersion: 0,
     }
     broadcast({ type: 'current', data })
     transcriptionState.currentSubtitle = {
@@ -79,7 +79,7 @@ function processResult(result: { type: string; text: string; language: string })
       enText: '',
       version: partialVersion,
       enVersion: 0,
-      startTime: Date.now()
+      startTime: Date.now(),
     }
   } else if (result.type === 'final') {
     partialVersion = 0
@@ -88,7 +88,7 @@ function processResult(result: { type: string; text: string; language: string })
       id,
       text: result.text,
       optimizedText: '',
-      enText: ''
+      enText: '',
     }
     broadcast({ type: 'confirmed', data })
     broadcast({ type: 'current', data: { text: '', enText: '', version: 0, enVersion: 0 } })
@@ -96,11 +96,14 @@ function processResult(result: { type: string; text: string; language: string })
     transcriptionState.confirmedSubtitles.push({
       id,
       text: result.text,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
-    processAI(result.text).then(ai => {
-      broadcast({ type: 'ai-processed', data: { id, optimizedText: ai.optimizedText, enText: ai.enText } })
-      const subtitle = transcriptionState.confirmedSubtitles.find(s => s.id === id)
+    processAI(result.text).then((ai) => {
+      broadcast({
+        type: 'ai-processed',
+        data: { id, optimizedText: ai.optimizedText, enText: ai.enText },
+      })
+      const subtitle = transcriptionState.confirmedSubtitles.find((s) => s.id === id)
       if (subtitle) {
         subtitle.optimizedText = ai.optimizedText
         subtitle.enText = ai.enText
@@ -131,11 +134,20 @@ function _onError(error: Error): void {
 // === 状态广播 ===
 
 export function getStatusData(): TranscriptionStatusData {
-  const sourceLabel = currentSource === 'mic' ? '麦克风' : currentSource === 'stream' ? '直播流' : ''
+  const sourceLabel =
+    currentSource === 'mic' ? '麦克风' : currentSource === 'stream' ? '直播流' : ''
   const sourceStatus = audioSource?.getStatus()
   const audioDetail = sourceStatus
-    ? (sourceStatus.state === 'running' ? '运行中' : sourceStatus.state === 'connecting' ? '连接中' : sourceStatus.state === 'error' ? '错误' : undefined)
-    : (managerState === 'running' && currentSource ? '运行中' : undefined)
+    ? sourceStatus.state === 'running'
+      ? '运行中'
+      : sourceStatus.state === 'connecting'
+        ? '连接中'
+        : sourceStatus.state === 'error'
+          ? '错误'
+          : undefined
+    : managerState === 'running' && currentSource
+      ? '运行中'
+      : undefined
 
   return {
     state: managerState,
@@ -143,11 +155,11 @@ export function getStatusData(): TranscriptionStatusData {
     audio: {
       active: currentSource !== null,
       label: sourceLabel,
-      detail: audioDetail
+      detail: audioDetail,
     },
     recognition: {
       active: bridgeStatus === 'connected' && asrReady,
-      detail: bridgeStatus === 'connected' ? (asrReady ? '运行中' : '加载中') : '已停止'
+      detail: bridgeStatus === 'connected' ? (asrReady ? '运行中' : '加载中') : '已停止',
     },
     uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
     ...(cachedASRConfig ? { asrConfig: cachedASRConfig } : {}),
@@ -173,12 +185,14 @@ export const transcriptionManager = {
         bridgeStatus = 'connected'
         console.log(`[TranscriptionManager] ASR 已连接: ${bridgeConfig!.url}`)
         const { url, ...asrFields } = bridgeConfig!
-        ws!.send(JSON.stringify({
-          type: 'config',
-          provider: asrFields.provider || 'gguf',
-          model: asrFields.model || '',
-          ...asrFields,
-        }))
+        ws!.send(
+          JSON.stringify({
+            type: 'config',
+            provider: asrFields.provider || 'gguf',
+            model: asrFields.model || '',
+            ...asrFields,
+          }),
+        )
       })
 
       ws.on('message', (data: Buffer) => {
@@ -335,5 +349,5 @@ export const transcriptionManager = {
 
   isActive(): boolean {
     return managerState !== 'idle'
-  }
+  },
 }

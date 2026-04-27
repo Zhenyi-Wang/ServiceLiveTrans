@@ -7,10 +7,7 @@ defineProps<Props>()
 </script>
 
 <template>
-  <div
-    class="divider"
-    :class="{ hidden }"
-  />
+  <div class="divider" :class="{ hidden }" />
 </template>
 
 <style scoped>

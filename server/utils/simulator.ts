@@ -1,4 +1,4 @@
-import type { CurrentSubtitle, ConfirmedSubtitle } from '../../types/subtitle'
+import type { ConfirmedSubtitle } from '../../types/subtitle'
 import type { SimulationState } from '../../types/simulation'
 import { DEFAULT_SIMULATION_STATE } from '../../types/simulation'
 import { getRandomSentence } from './sample-data'
@@ -62,8 +62,8 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
         text: chineseChars.join(''),
         enText: sentence.english,
         version: chineseVersion,
-        enVersion: englishVersion
-      }
+        enVersion: englishVersion,
+      },
     })
   }
 
@@ -82,7 +82,7 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
         enText: '',
         version: chineseVersion,
         enVersion: 0,
-        startTime: Date.now()
+        startTime: Date.now(),
       }
 
       transcriptionState.currentSubtitle = simulationState.currentSubtitle
@@ -94,15 +94,18 @@ function startCharacterSimulation(sentence: { chinese: string; english: string }
           text: currentText,
           enText: '',
           version: chineseVersion,
-          enVersion: 0
-        }
+          enVersion: 0,
+        },
       })
 
       // 模拟异步翻译（延迟返回）
-      setTimeout(() => {
-        if (!simulationState.isRunning) return
-        simulateAsyncTranslation()
-      }, 500 + Math.random() * 500)
+      setTimeout(
+        () => {
+          if (!simulationState.isRunning) return
+          simulateAsyncTranslation()
+        },
+        500 + Math.random() * 500,
+      )
 
       charIndex++
       characterTimer = setTimeout(outputNextChar, 100 + Math.random() * 100)
@@ -129,7 +132,7 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
   const confirmedSubtitle: ConfirmedSubtitle = {
     id,
     text: sentence.chinese,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   }
   simulationState.confirmedSubtitles.push(confirmedSubtitle)
   transcriptionState.confirmedSubtitles.push(confirmedSubtitle)
@@ -141,8 +144,8 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
       id,
       text: sentence.chinese,
       optimizedText: '',
-      enText: ''
-    }
+      enText: '',
+    },
   })
 
   // 模拟 AI 优化+翻译（延迟后返回）
@@ -153,7 +156,7 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
     const optimizedText = simulateOptimization(sentence.chinese)
 
     // 更新字幕状态
-    const subtitle = simulationState.confirmedSubtitles.find(s => s.id === id)
+    const subtitle = simulationState.confirmedSubtitles.find((s) => s.id === id)
     if (subtitle) {
       subtitle.optimizedText = optimizedText
       subtitle.enText = sentence.english
@@ -166,19 +169,22 @@ function confirmSubtitle(sentence: { chinese: string; english: string }) {
         id,
         text: sentence.chinese,
         optimizedText,
-        enText: sentence.english
-      }
+        enText: sentence.english,
+      },
     })
   }, aiDelay)
 
   // 继续下一个字幕
   if (simulationState.isRunning) {
-    simulationTimer = setTimeout(() => {
-      if (simulationState.isRunning) {
-        const nextSentence = getRandomSentence()
-        startCharacterSimulation(nextSentence)
-      }
-    }, 1500 + Math.random() * 1000)
+    simulationTimer = setTimeout(
+      () => {
+        if (simulationState.isRunning) {
+          const nextSentence = getRandomSentence()
+          startCharacterSimulation(nextSentence)
+        }
+      },
+      1500 + Math.random() * 1000,
+    )
   }
 }
 
@@ -190,7 +196,7 @@ function simulateOptimization(text: string): string {
     text,
     text.endsWith('。') ? text : text + '。',
     text.replace(/，/g, ',').replace(/。/g, '.'),
-    text
+    text,
   ]
   return optimizations[Math.floor(Math.random() * optimizations.length)]
 }
@@ -261,7 +267,7 @@ export function getStatus() {
     subtitleCount: simulationState.confirmedSubtitles.length,
     config: {
       optimizationDelay: simulationState.optimizationDelay,
-      delayRandomRange: simulationState.delayRandomRange
-    }
+      delayRandomRange: simulationState.delayRandomRange,
+    },
   }
 }

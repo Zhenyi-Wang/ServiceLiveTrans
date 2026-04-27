@@ -15,6 +15,7 @@
 ### Task 1: Python 端 — 添加 HTTP /health 端点
 
 **Files:**
+
 - Modify: `asr/server.py`
 
 - [ ] **Step 1: 添加 health handler 和 get_health_data 函数**
@@ -77,8 +78,16 @@ curl http://localhost:9900/health
 ```
 
 预期返回类似：
+
 ```json
-{"status":"ok","available_providers":["gguf"],"model_loaded":false,"provider":"","gpu_used_mb":0,"idle_seconds":0.0}
+{
+  "status": "ok",
+  "available_providers": ["gguf"],
+  "model_loaded": false,
+  "provider": "",
+  "gpu_used_mb": 0,
+  "idle_seconds": 0.0
+}
 ```
 
 如果 conda 环境不可用，跳过此步骤，在 Task 5 集成测试中验证。
@@ -95,6 +104,7 @@ git commit -m "feat: 为 ASR 服务添加 HTTP /health 端点（同端口）"
 ### Task 2: Nuxt 后端 — 进程管理模块
 
 **Files:**
+
 - Create: `server/utils/asr-process.ts`
 
 - [ ] **Step 1: 创建 asr-process.ts**
@@ -152,7 +162,7 @@ function detectPythonPath(): string {
     const result = execSync('conda run -n trans which python', {
       encoding: 'utf-8',
       timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     }).trim()
     if (result) {
       cachedPythonPath = result
@@ -272,6 +282,7 @@ git commit -m "feat: 添加 ASR 进程管理模块（spawn/kill/health）"
 ### Task 3: Nuxt 后端 — Nitro shutdown hook
 
 **Files:**
+
 - Create: `server/plugins/asr-cleanup.ts`
 
 - [ ] **Step 1: 创建 Nitro shutdown hook 插件**
@@ -299,6 +310,7 @@ git commit -m "feat: 添加 Nitro shutdown hook 清理 ASR 进程"
 ### Task 4: Nuxt 后端 — API 端点修改
 
 **Files:**
+
 - Modify: `server/routes/api/asr/start.ts`
 - Modify: `server/routes/api/asr/stop.ts`
 - Create: `server/routes/api/asr/service-health.ts`
@@ -320,7 +332,7 @@ export default defineEventHandler(async (event) => {
   if (source && !VALID_SOURCES.includes(source)) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
+      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`,
     })
   }
 
@@ -332,7 +344,7 @@ export default defineEventHandler(async (event) => {
   } catch (error: any) {
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'ASR 进程启动失败'
+      statusMessage: error.message || 'ASR 进程启动失败',
     })
   }
 
@@ -340,7 +352,7 @@ export default defineEventHandler(async (event) => {
   if (asrStatus.isActive) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'ASR is already running'
+      statusMessage: 'ASR is already running',
     })
   }
 
@@ -349,14 +361,14 @@ export default defineEventHandler(async (event) => {
   startASR(
     { url, provider: provider || 'gguf', model: model || '' },
     (source || 'mic') as 'mic' | 'stream',
-    streamUrl
+    streamUrl,
   )
 
   return {
     success: true,
     spawned,
     provider,
-    source: source || 'mic'
+    source: source || 'mic',
   }
 })
 ```
@@ -402,8 +414,9 @@ curl http://localhost:3001/api/asr/service-health
 ```
 
 预期：
+
 ```json
-{"status":"offline","process":{"pid":null,"selfStarted":false}}
+{ "status": "offline", "process": { "pid": null, "selfStarted": false } }
 ```
 
 ```bash
@@ -412,8 +425,9 @@ curl http://localhost:3001/api/asr/status
 ```
 
 预期：
+
 ```json
-{"isActive":false,"bridgeStatus":"disconnected","provider":null,"modelLoaded":false}
+{ "isActive": false, "bridgeStatus": "disconnected", "provider": null, "modelLoaded": false }
 ```
 
 - [ ] **Step 5: Commit**
@@ -428,6 +442,7 @@ git commit -m "feat: 修改 ASR API 端点支持进程管理和健康检查"
 ### Task 5: 前端 — ASR 面板集成服务状态
 
 **Files:**
+
 - Modify: `components/admin/ASRControlPanel.vue`
 - Modify: `pages/admin.vue`
 
@@ -483,7 +498,7 @@ async function fetchServiceHealth() {
 const { pause: pauseHealthPoll, resume: resumeHealthPoll } = useIntervalFn(
   fetchServiceHealth,
   3000,
-  { immediate: true }
+  { immediate: true },
 )
 ```
 
@@ -509,7 +524,7 @@ async function handleStart() {
   emit('start', {
     provider: provider.value,
     model: '',
-    source: source.value
+    source: source.value,
   })
 }
 ```
@@ -591,18 +606,23 @@ async function handleStart() {
 替换 `handleASRStart` 函数：
 
 ```typescript
-const handleASRStart = async (config: { provider: string; model: string; source: string; streamUrl?: string }) => {
+const handleASRStart = async (config: {
+  provider: string
+  model: string
+  source: string
+  streamUrl?: string
+}) => {
   asrIsLoading.value = true
   try {
     const response = await $fetch<{ success: boolean; spawned?: boolean }>('/api/asr/start', {
       method: 'POST',
-      body: config
+      body: config,
     })
 
     // 如果 spawn 了新进程，等待服务就绪
     if (response.spawned) {
       for (let i = 0; i < 60; i++) {
-        await new Promise(r => setTimeout(r, 2000))
+        await new Promise((r) => setTimeout(r, 2000))
         try {
           const health = await $fetch<{ status: string }>('/api/asr/service-health')
           if (health.status === 'ok') break
@@ -632,6 +652,7 @@ const handleASRStart = async (config: { provider: string; model: string; source:
 ```
 
 导航到 `http://localhost:3001/admin`，在 ASR CONTROL 面板中验证：
+
 1. 显示 "SERVICE" 标签和 "OFFLINE" 状态（灰色）
 2. Provider 按钮仍然显示（回退到 `['gguf']`）
 
@@ -667,6 +688,7 @@ pnpm dev
 - [ ] **Step 3: Playwright 测试 — 手动启动的服务**
 
 如果 ASR 服务已经手动启动在 9900 端口：
+
 1. 导航到 `http://localhost:3001/admin`
 2. 验证 SERVICE 显示 READY（无需点击 START）
 3. 点击 START ASR → 验证正常连接（spawned=false）

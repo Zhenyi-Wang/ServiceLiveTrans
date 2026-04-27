@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   if (!source || !VALID_SOURCES.includes(source)) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
+      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`,
     })
   }
 
@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({
       statusCode: 500,
-      statusMessage: result.error || '启动音频源失败'
+      statusMessage: result.error || '启动音频源失败',
     })
   }
 

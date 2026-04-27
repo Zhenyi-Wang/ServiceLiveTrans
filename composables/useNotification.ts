@@ -21,18 +21,14 @@ const generateId = () => `notification-${Date.now()}-${Math.random().toString(36
 
 export function useNotification() {
   // 显示通知
-  const show = (
-    message: string,
-    type: NotificationType = 'info',
-    duration: number = 3000
-  ) => {
+  const show = (message: string, type: NotificationType = 'info', duration: number = 3000) => {
     const id = generateId()
     const notification: NotificationItem = {
       id,
       type,
       message,
       duration,
-      visible: true
+      visible: true,
     }
 
     notifications.value.push(notification)
@@ -49,12 +45,12 @@ export function useNotification() {
 
   // 隐藏通知
   const hide = (id: string) => {
-    const index = notifications.value.findIndex(n => n.id === id)
+    const index = notifications.value.findIndex((n) => n.id === id)
     if (index !== -1) {
       notifications.value[index].visible = false
       // 延迟移除，等待动画完成
       setTimeout(() => {
-        const removeIndex = notifications.value.findIndex(n => n.id === id)
+        const removeIndex = notifications.value.findIndex((n) => n.id === id)
         if (removeIndex !== -1) {
           notifications.value.splice(removeIndex, 1)
         }
@@ -81,6 +77,6 @@ export function useNotification() {
     success,
     error,
     warning,
-    info
+    info,
   }
 }

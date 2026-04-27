@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Ref } from 'vue'
 interface ChineseSegment {
   text: string
   isOptimized: boolean
@@ -16,44 +15,42 @@ interface Props {
   language: 'chinese' | 'english'
   paragraphs: Array<Array<ChineseSegment | EnglishSegment> | null>
   fontSize: number
-  scrollContainerRef?: Ref<HTMLElement | null>
 }
 
 const props = defineProps<Props>()
 
-defineEmits<{
+const emit = defineEmits<{
   scroll: [event: Event]
+  'container-ref': [el: HTMLElement | null]
 }>()
 
 const articleClasses = computed(() => ({
   'chinese-article': props.language === 'chinese',
   'english-article': props.language === 'english',
-  'flex-article': true
+  'flex-article': true,
 }))
 
 const contentClasses = computed(() => ({
-  'english-content': props.language === 'english'
+  'english-content': props.language === 'english',
 }))
 
 const setScrollContainerRef = (el: HTMLElement | null) => {
-  if (props.scrollContainerRef) {
-    props.scrollContainerRef.value = el
-  }
+  emit('container-ref', el)
 }
 </script>
 
 <template>
   <div
+    :ref="setScrollContainerRef"
     class="article-display"
     :class="articleClasses"
-    :ref="setScrollContainerRef"
     @scroll="$emit('scroll', $event)"
   >
     <div
       v-for="(paragraph, index) in paragraphs"
       :key="`${language}-${index}`"
       class="article-paragraph"
-      :class="{ 'translating': language === 'english' && !paragraph }"
+      :class="{ translating: language === 'english' && !paragraph }"
     >
       <div
         class="paragraph-content"
@@ -64,12 +61,9 @@ const setScrollContainerRef = (el: HTMLElement | null) => {
         <template v-if="language === 'chinese'">
           <TransitionGroup name="segment" tag="div" class="segments-container">
             <span
-              v-for="(segment, segIndex) in (paragraph as ChineseSegment[])"
+              v-for="(segment, segIndex) in paragraph as ChineseSegment[]"
               :key="`cn-${index}-${segIndex}`"
-              :class="[
-                segment.isOptimized ? 'optimized-text' : 'unoptimized-text',
-                'text-segment'
-              ]"
+              :class="[segment.isOptimized ? 'optimized-text' : 'unoptimized-text', 'text-segment']"
             >
               {{ segment.text }}
             </span>
@@ -80,17 +74,20 @@ const setScrollContainerRef = (el: HTMLElement | null) => {
         <template v-else>
           <template v-if="paragraph">
             <span
-              v-for="(segment, segIndex) in (paragraph as EnglishSegment[])"
+              v-for="(segment, segIndex) in paragraph as EnglishSegment[]"
               :key="segment.id || `en-${index}-${segIndex}`"
               class="text-segment english-segment"
               :class="{
-                'translating': segment.isTranslating,
-                'has-translation': segment.hasContent
+                translating: segment.isTranslating,
+                'has-translation': segment.hasContent,
               }"
             >
               <span v-if="segment.hasContent" class="translation-content">{{ segment.text }} </span>
               <span v-if="segment.isTranslating" class="translating-dots">... </span>
-              <span v-if="segment.hasContent && segIndex < (paragraph as EnglishSegment[]).length - 1"> </span>
+              <span
+                v-if="segment.hasContent && segIndex < (paragraph as EnglishSegment[]).length - 1"
+              >
+              </span>
             </span>
           </template>
         </template>
@@ -171,9 +168,17 @@ const setScrollContainerRef = (el: HTMLElement | null) => {
 }
 
 @keyframes dots {
-  0%, 20% { opacity: 0; }
-  50% { opacity: 1; }
-  80%, 100% { opacity: 0; }
+  0%,
+  20% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  80%,
+  100% {
+    opacity: 0;
+  }
 }
 
 @keyframes fadeInUp {

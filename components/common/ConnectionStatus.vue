@@ -14,28 +14,28 @@ const statusConfig = computed(() => {
         color: 'var(--primary-color)',
         bgColor: 'rgba(var(--primary-rgb), 0.1)',
         label: '已连接',
-        connected: true
+        connected: true,
       }
     case 'connecting':
       return {
         color: '#eab308',
         bgColor: 'rgba(234, 179, 8, 0.1)',
         label: '连接中...',
-        connected: false
+        connected: false,
       }
     case 'error':
       return {
         color: '#ef4444',
         bgColor: 'rgba(239, 68, 68, 0.1)',
         label: '连接错误',
-        connected: false
+        connected: false,
       }
     default:
       return {
         color: '#9ca3af',
         bgColor: 'rgba(156, 163, 175, 0.1)',
         label: '未连接',
-        connected: false
+        connected: false,
       }
   }
 })
@@ -74,7 +74,8 @@ const statusConfig = computed(() => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4);
   }
   50% {

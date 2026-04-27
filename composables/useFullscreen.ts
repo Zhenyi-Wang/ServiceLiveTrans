@@ -38,33 +38,33 @@ export function useFullscreen() {
   // 中文区样式类
   const getChineseSectionClasses = computed(() => ({
     'chinese-section': true,
-    'hidden': isEnglishFullscreen.value,
-    'fullscreen': isChineseFullscreen.value
+    hidden: isEnglishFullscreen.value,
+    fullscreen: isChineseFullscreen.value,
   }))
 
   // 英文区样式类
   const getEnglishSectionClasses = computed(() => ({
     'english-section': true,
-    'hidden': isChineseFullscreen.value,
-    'fullscreen': isEnglishFullscreen.value
+    hidden: isChineseFullscreen.value,
+    fullscreen: isEnglishFullscreen.value,
   }))
 
   // 中文区头部样式类
   const getChineseHeaderClasses = computed(() => ({
-    'fullscreen': isChineseFullscreen.value,
-    'disabled': isEnglishFullscreen.value
+    fullscreen: isChineseFullscreen.value,
+    disabled: isEnglishFullscreen.value,
   }))
 
   // 英文区头部样式类
   const getEnglishHeaderClasses = computed(() => ({
-    'fullscreen': isEnglishFullscreen.value,
-    'disabled': isChineseFullscreen.value
+    fullscreen: isEnglishFullscreen.value,
+    disabled: isChineseFullscreen.value,
   }))
 
   // 分隔线样式类
   const getDividerClasses = computed(() => ({
-    'divider': true,
-    'hidden': isChineseFullscreen.value || isEnglishFullscreen.value
+    divider: true,
+    hidden: isChineseFullscreen.value || isEnglishFullscreen.value,
   }))
 
   return {
@@ -82,6 +82,6 @@ export function useFullscreen() {
     getEnglishSectionClasses,
     getChineseHeaderClasses,
     getEnglishHeaderClasses,
-    getDividerClasses
+    getDividerClasses,
   }
 }

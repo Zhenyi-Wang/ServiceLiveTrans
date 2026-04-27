@@ -15,14 +15,14 @@
 
 ## 设计决策
 
-| 决策 | 选择 | 原因 |
-|------|------|------|
-| ASR 服务启动 | 全自动，用户不感知 | 一键体验 |
+| 决策         | 选择                                   | 原因                           |
+| ------------ | -------------------------------------- | ------------------------------ |
+| ASR 服务启动 | 全自动，用户不感知                     | 一键体验                       |
 | 启动失败处理 | 每步独立重试（3 次，1s→2s→4s），不回滚 | 已成功的部分保持在线，方便重试 |
-| 运行中切源 | 热切换，Bridge 不动 | 不中断转录 |
-| 服务崩溃处理 | 暂停音频源，自动重连服务 | 自动恢复 |
-| 停止范围 | 全部停止（音频源 + Bridge + ASR 服务） | 最干净的状态 |
-| 状态推送 | 全部走 WebSocket，无轮询 | 实时、架构干净 |
+| 运行中切源   | 热切换，Bridge 不动                    | 不中断转录                     |
+| 服务崩溃处理 | 暂停音频源，自动重连服务               | 自动恢复                       |
+| 停止范围     | 全部停止（音频源 + Bridge + ASR 服务） | 最干净的状态                   |
+| 状态推送     | 全部走 WebSocket，无轮询               | 实时、架构干净                 |
 
 ## 场景
 
@@ -41,10 +41,12 @@
 热切换机制（后端协调，分两种情况）：
 
 **stream 源切换**（涉及后端音频源）：
+
 - stream → stream：后端停止旧 FLVSource → 启动新 FLVSource
 - stream → mic/file：后端停止 FLVSource → 通知前端启动采集/播放
 
 **前端源切换**（仅涉及前端采集）：
+
 - mic → file：通知前端停止 mic 采集 → 启动文件播放
 - mic → mic：通知前端重启 mic 采集（切换设备时）
 - file → mic：通知前端停止文件播放 → 启动 mic 采集
@@ -73,6 +75,7 @@ idle → starting → running → stopping → idle
 ```
 
 状态定义：
+
 - `idle` — 全部停止
 - `starting` — 链式启动中（重试期间也保持 starting）
 - `running` — 正常转录
@@ -143,6 +146,7 @@ interface AudioSourceStopData {}
 - `transcription-manager.ts`（重构）— 内部模块，只负责 Bridge 连接/断开、音频转发、ASR 结果处理。将其私有函数（`bridgeConnect`、`bridgeDisconnect`、`sendAudioChunkToASR`）改为通过新增的公开方法暴露给 Orchestrator 调用
 
 Orchestrator 调用 transcription-manager 的公开方法：
+
 - `manager.connectBridge(config)` — 连接 ASR Bridge
 - `manager.disconnectBridge()` — 断开 Bridge
 - `manager.sendAudioChunk(data)` — 转发音频
@@ -162,6 +166,7 @@ Orchestrator 调用 transcription-manager 的公开方法：
 5. **自动恢复**：服务崩溃时自动重连
 
 启动链路步骤：
+
 1. **探测性健康检查**（`GET http://127.0.0.1:9900/health`）→ 推送 `health-checking`。此步骤是探测性的，失败不触发重试，直接进入步骤 2。成功则推送 `health-ok` 并跳过步骤 2
 2. 如果步骤 1 失败，启动服务（复用 `asr-process.ts` 的 `startASRProcess()`）→ 推送 `service-starting`。启动后轮询健康检查直到 OK → 推送 `service-ready`。此步骤独立重试（3 次）
 3. 连接 Bridge → 推送 `bridge-connecting` / `bridge-connected`
@@ -169,6 +174,7 @@ Orchestrator 调用 transcription-manager 的公开方法：
 5. 对于 stream 源：启动 FLVSource。对于 mic/file 源：推送 `audio-source-start` 指令通知前端 → 推送 `source-starting` / `source-ready`
 
 停止链路步骤：
+
 1. 推送 `audio-source-stop` 通知前端停止采集/播放；对 stream 源同时调用 `manager.stopStreamSource()` → 推送 `stopping-source`
 2. 调用 `manager.disconnectBridge()` → 推送 `stopping-bridge`
 3. 调用 `stopASRProcess()` → 推送 `stopping-service`
@@ -176,11 +182,13 @@ Orchestrator 调用 transcription-manager 的公开方法：
 ### API 变更
 
 **新增：**
+
 - `POST /api/transcription/start` — 一键启动，body: `{ source, streamUrl?, provider?, overlapSec?, memoryChunks? }`
 - `POST /api/transcription/stop` — 一键停止
 - `POST /api/transcription/switch-source` — 热切换音频源，body: `{ source, streamUrl? }`
 
 **废弃（标记 @deprecated，过渡期后删除）：**
+
 - `POST /api/asr/start` — 由 `/api/transcription/start` 替代
 - `POST /api/asr/stop` — 由 `/api/transcription/stop` 替代
 - `GET /api/asr/status` — 由 WS `transcription-status` 推送替代
@@ -188,6 +196,7 @@ Orchestrator 调用 transcription-manager 的公开方法：
 - `GET /api/status` — 保留用于模拟器场景（详见下方说明）
 
 **保留：**
+
 - `POST /api/asr/service-start` — 高级面板单独控制用
 - `POST /api/asr/service-stop` — 高级面板单独控制用
 - `GET /api/asr/config` — 高级面板获取默认配置用
@@ -234,6 +243,7 @@ Orchestrator 调用 transcription-manager 的公开方法：
 ### AdminStatusPanel 变更
 
 `AdminStatusPanel` 的数据来源拆分：
+
 - **模拟器状态**（isActive）：继续从 `GET /api/status` 获取（保留轮询或由模拟器自行推送）
 - **连接数**（connectionCount）：从 WS `connection-count` 消息获取
 - **字幕数**（subtitleCount）：前端自行维护计数（每收到 `confirmed` 消息 +1）
@@ -265,13 +275,13 @@ Orchestrator 调用 transcription-manager 的公开方法：
 
 ### 状态展示规则
 
-| 总状态 | 音频状态 | 识别状态 | 按钮文字 |
-|--------|---------|---------|---------|
-| idle | 已停止 | 已停止 | 开始转录 |
-| starting | 等待中/启动中 | 启动中/加载中 | 启动中... |
-| running | 麦克风采集中/文件播放中/拉流中 | 运行中 | 停止转录 |
-| error | (视情况) | (错误原因) | 重新开始 |
-| stopping | 停止中 | 停止中 | 停止中... |
+| 总状态   | 音频状态                       | 识别状态      | 按钮文字  |
+| -------- | ------------------------------ | ------------- | --------- |
+| idle     | 已停止                         | 已停止        | 开始转录  |
+| starting | 等待中/启动中                  | 启动中/加载中 | 启动中... |
+| running  | 麦克风采集中/文件播放中/拉流中 | 运行中        | 停止转录  |
+| error    | (视情况)                       | (错误原因)    | 重新开始  |
+| stopping | 停止中                         | 停止中        | 停止中... |
 
 ### 高级区域（折叠）
 
@@ -307,7 +317,7 @@ function useTranscription() {
   const error: Ref<string | undefined>
   const uptime: Ref<number>
   const connectionCount: Ref<number>
-  const subtitleCount: Ref<number>  // 前端自行维护
+  const subtitleCount: Ref<number> // 前端自行维护
 
   // 操作方法
   async function startTranscription(config: { source: string; streamUrl?: string }): Promise<void>
@@ -319,12 +329,23 @@ function useTranscription() {
   // 处理类型：transcription-status、transcription-progress、connection-count、audio-source-start、audio-source-stop、confirmed（计数+1）
 
   // 音频源控制（由 WS 指令触发，不暴露给用户直接调用）
-  function startAudioCapture(): void   // 调用 useAudioCapture
-  function stopAudioCapture(): void    // 停止 useAudioCapture
-  function startFilePlayback(): void   // 调用 useAudioFilePlayer
+  function startAudioCapture(): void // 调用 useAudioCapture
+  function stopAudioCapture(): void // 停止 useAudioCapture
+  function startFilePlayback(): void // 调用 useAudioFilePlayer
   function stopFilePlayback(): void
 
-  return { state, audio, recognition, error, uptime, connectionCount, subtitleCount, startTranscription, stopTranscription, switchSource }
+  return {
+    state,
+    audio,
+    recognition,
+    error,
+    uptime,
+    connectionCount,
+    subtitleCount,
+    startTranscription,
+    stopTranscription,
+    switchSource,
+  }
 }
 ```
 
@@ -341,6 +362,7 @@ function useTranscription() {
 ## 文件变更清单
 
 ### 新增文件
+
 - `server/utils/transcription-orchestrator.ts` — 链式编排器
 - `server/routes/api/transcription/start.ts` — 一键启动 API
 - `server/routes/api/transcription/stop.ts` — 一键停止 API
@@ -349,18 +371,21 @@ function useTranscription() {
 - `composables/useTranscription.ts` — 转录状态管理 composable
 
 ### 重构文件
+
 - `server/utils/transcription-manager.ts` — 暴露公开方法供 Orchestrator 调用，废弃 `_broadcastStatus()` 改为发送 `transcription-status`
 - `server/routes/api/ws.ts` — 增强 `init` 消息，增加 `connection-count` 广播触发
 - `server/utils/websocket.ts` — `addConnection`/`removeConnection` 中触发 `connection-count` 广播
 - `types/websocket.ts` — 新增/修改类型定义
 
 ### 删除文件
+
 - `components/admin/ASRControlPanel.vue` — 合并到 TranscriptionControlPanel
 - `components/admin/ModelStatusPanel.vue` — 合并到 TranscriptionControlPanel
 - `server/routes/api/asr/start.ts` — 由 transcription/start 替代
 - `server/routes/api/asr/stop.ts` — 由 transcription/stop 替代
 
 ### 修改文件
+
 - `pages/admin.vue` — 替换面板组件引用，移除转录相关轮询，调整状态管理
 - `pages/index.vue` — 无需修改（init 新字段被 useSubtitles 忽略）
 - `composables/useWebSocket.ts` — 无需修改（消息处理委托给 useTranscription）

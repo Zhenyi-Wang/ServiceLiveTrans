@@ -80,7 +80,20 @@ export interface TranscriptionStatusData {
  * 转录进度数据
  */
 export interface TranscriptionProgressData {
-  step: 'health-checking' | 'health-ok' | 'service-starting' | 'service-ready' | 'bridge-connecting' | 'bridge-connected' | 'model-loading' | 'model-ready' | 'source-starting' | 'source-ready' | 'stopping-source' | 'stopping-bridge' | 'stopping-service'
+  step:
+    | 'health-checking'
+    | 'health-ok'
+    | 'service-starting'
+    | 'service-ready'
+    | 'bridge-connecting'
+    | 'bridge-connected'
+    | 'model-loading'
+    | 'model-ready'
+    | 'source-starting'
+    | 'source-ready'
+    | 'stopping-source'
+    | 'stopping-bridge'
+    | 'stopping-service'
 }
 
 /**
@@ -100,7 +113,7 @@ export interface AudioSourceCommandData {
 /**
  * 音频源停止指令数据
  */
-export interface AudioSourceStopData {}
+export type AudioSourceStopData = Record<string, never>
 
 /**
  * WebSocket 消息

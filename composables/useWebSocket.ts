@@ -20,7 +20,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     onError,
     reconnect = true,
     reconnectInterval = 3000,
-    maxReconnectAttempts = 10
+    maxReconnectAttempts = 10,
   } = options
 
   const status = ref<ConnectionStatus>('disconnected')
@@ -66,7 +66,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         if (reconnect && reconnectAttempts.value < maxReconnectAttempts && !isReconnecting.value) {
           isReconnecting.value = true
           reconnectAttempts.value++
-          console.log(`Attempting to reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`)
+          console.log(
+            `Attempting to reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`,
+          )
           setTimeout(connect, reconnectInterval)
         }
       }
@@ -91,7 +93,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     isReconnecting.value = false
   }
 
-  const send = (data: any) => {
+  const send = (data: Record<string, unknown>) => {
     if (ws.value && ws.value.readyState === WebSocket.OPEN) {
       ws.value.send(JSON.stringify(data))
       return true
@@ -115,6 +117,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     disconnect,
     send,
     reconnectAttempts: readonly(reconnectAttempts),
-    isReconnecting: readonly(isReconnecting)
+    isReconnecting: readonly(isReconnecting),
   }
 }

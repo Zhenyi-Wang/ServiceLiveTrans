@@ -28,6 +28,7 @@ def _on_token(piece: str) -> None:
 Python 官方文档明确指出：**`asyncio.Queue` 不是线程安全的。**
 
 `put_nowait()` 内部会调用 `self._notify_getters()`，该方法会执行 `fut.set_result(None)` 来唤醒等待中的 getter。但从非 event loop 线程调用 `set_result()` 是未定义行为 — 它可能：
+
 1. 静默失败（getter 不被唤醒）← 我们遇到的情况
 2. 导致竞态条件
 3. 偶然工作（CPython GIL 有时碰巧能掩盖问题）
@@ -49,9 +50,11 @@ def _on_token(piece: str) -> None:
 ## 效果对比
 
 修复前（`put_nowait` 直接调用）：
+
 - 20 条 partial 消息在 37ms 内全部到达（推理结束后一次性消费）
 
 修复后（`call_soon_threadsafe`）：
+
 - 20 条 partial 消息间隔 6-8ms 逐条到达（推理过程中实时消费）
 - 前端 current 区域可以看到文字逐步增长
 

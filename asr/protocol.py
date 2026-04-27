@@ -1,9 +1,11 @@
 """WebSocket 消息协议定义"""
+
 from __future__ import annotations
-from dataclasses import dataclass, asdict
-from enum import Enum
+
 import json
-from typing import Literal, Union
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Literal
 
 
 class MessageType(str, Enum):
@@ -30,6 +32,7 @@ class ASRResult:
 
 
 # --- Nuxt → Python ---
+
 
 @dataclass
 class ConfigMessage:
@@ -61,6 +64,7 @@ class ModelStatusMessage:
 
 
 # --- Python → Nuxt ---
+
 
 @dataclass
 class PartialResult:
@@ -106,11 +110,20 @@ class ModelStatusResponse:
     idle_seconds: float = 0.0
 
 
-AnyMessage = Union[
-    ConfigMessage, AudioMessage, ModelLoadMessage, ModelUnloadMessage,
-    ModelStatusMessage, PartialResult, FinalResult, ErrorMessage,
-    LoadingEvent, ReadyEvent, UnloadedEvent, ModelStatusResponse,
-]
+AnyMessage = (
+    ConfigMessage
+    | AudioMessage
+    | ModelLoadMessage
+    | ModelUnloadMessage
+    | ModelStatusMessage
+    | PartialResult
+    | FinalResult
+    | ErrorMessage
+    | LoadingEvent
+    | ReadyEvent
+    | UnloadedEvent
+    | ModelStatusResponse
+)
 
 _CLIENT_MSG_TYPES: dict[str, type] = {
     "config": ConfigMessage,

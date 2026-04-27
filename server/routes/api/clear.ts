@@ -5,6 +5,6 @@ export default defineEventHandler(() => {
 
   return {
     success: true,
-    message: 'Subtitles cleared'
+    message: 'Subtitles cleared',
   }
 })

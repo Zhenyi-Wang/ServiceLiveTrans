@@ -13,7 +13,7 @@ const {
   configParagraphLength,
   configChineseFontSize,
   configEnglishFontSize,
-  cssVariables
+  cssVariables,
 } = useSettings()
 
 // 字幕状态
@@ -22,28 +22,29 @@ const {
   confirmedSubtitles,
   connectionStatus,
   handleMessage,
-  _setConnectionStatus
+  _setConnectionStatus,
 } = useSubtitles()
 
 // WebSocket 连接
 const { status } = useWebSocket({
-  onMessage: handleMessage
+  onMessage: handleMessage,
 })
 
 // 同步 WebSocket 状态到 useSubtitles
-watch(status, (newStatus) => {
-  _setConnectionStatus(newStatus)
-}, { immediate: true })
+watch(
+  status,
+  (newStatus) => {
+    _setConnectionStatus(newStatus)
+  },
+  { immediate: true },
+)
 
 // 全屏控制
 const {
   isChineseFullscreen,
   isEnglishFullscreen,
-  getChineseSectionClasses,
-  getEnglishSectionClasses,
-  getDividerClasses,
   toggleChineseFullscreen,
-  toggleEnglishFullscreen
+  toggleEnglishFullscreen,
 } = useFullscreen()
 
 // 联动滚动
@@ -53,17 +54,17 @@ const {
   onEnglishScroll,
   watchDataAndScroll,
   chineseScrollContainer,
-  englishScrollContainer
+  englishScrollContainer,
 } = useScrollSync(configSyncScroll, configAutoScroll)
 
 const { getChineseParagraphs, getEnglishParagraphs } = useParagraphLogic(
   confirmedSubtitles,
-  computed(() => configParagraphLength.value)
+  computed(() => configParagraphLength.value),
 )
 
 // 是否等待服务
-const isWaitingForService = computed(() =>
-  connectionStatus.value !== 'connected' || confirmedSubtitles.value.length === 0
+const isWaitingForService = computed(
+  () => connectionStatus.value !== 'connected' || confirmedSubtitles.value.length === 0,
 )
 
 watchDataAndScroll(currentSubtitle, confirmedSubtitles)
@@ -85,10 +86,7 @@ const handleToggleAutoScroll = () => {
 
 <template>
   <ClientOnly>
-    <div
-      class="optimized-layout"
-      :style="cssVariables"
-    >
+    <div class="optimized-layout" :style="cssVariables">
       <!-- 顶部导航 -->
       <LayoutAppHeader
         :ws-connected="connectionStatus === 'connected'"
@@ -131,18 +129,16 @@ const handleToggleAutoScroll = () => {
           :is-fullscreen="isChineseFullscreen"
           :is-waiting-for-service="isWaitingForService"
           :auto-scroll="configAutoScroll"
-          :scroll-container-ref="chineseScrollContainer"
           @fullscreen="toggleChineseFullscreen"
           @font-size-change="handleChineseFontSizeChange"
           @toggle-auto-scroll="handleToggleAutoScroll"
           @scroll-to-bottom="scrollToBottom"
           @scroll="onChineseScroll"
+          @container-ref="(el: HTMLElement | null) => (chineseScrollContainer.value = el)"
         />
 
         <!-- 分隔线 -->
-        <ContentSectionDivider
-          v-show="!isChineseFullscreen && !isEnglishFullscreen"
-        />
+        <ContentSectionDivider v-show="!isChineseFullscreen && !isEnglishFullscreen" />
 
         <!-- 英文内容区域 -->
         <ContentSection
@@ -155,12 +151,12 @@ const handleToggleAutoScroll = () => {
           :is-fullscreen="isEnglishFullscreen"
           :is-waiting-for-service="isWaitingForService"
           :auto-scroll="configAutoScroll"
-          :scroll-container-ref="englishScrollContainer"
           @fullscreen="toggleEnglishFullscreen"
           @font-size-change="handleEnglishFontSizeChange"
           @toggle-auto-scroll="handleToggleAutoScroll"
           @scroll-to-bottom="scrollToBottom"
           @scroll="onEnglishScroll"
+          @container-ref="(el: HTMLElement | null) => (englishScrollContainer.value = el)"
         />
       </div>
     </div>

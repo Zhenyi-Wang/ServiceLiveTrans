@@ -13,6 +13,7 @@
 ### Task 1: 类型定义更新
 
 **Files:**
+
 - Modify: `types/websocket.ts`
 
 - [ ] **Step 1: 更新类型定义**
@@ -34,7 +35,7 @@ export type WSMessageType =
   | 'confirmed'
   | 'current'
   | 'clear'
-  | 'status'  // @deprecated 由 'transcription-status' 替代，Task 10 删除
+  | 'status' // @deprecated 由 'transcription-status' 替代，Task 10 删除
   | 'ai-processed'
   | 'transcription-status'
   | 'transcription-progress'
@@ -118,7 +119,20 @@ export interface TranscriptionStatusData {
  * 转录进度数据
  */
 export interface TranscriptionProgressData {
-  step: 'health-checking' | 'health-ok' | 'service-starting' | 'service-ready' | 'bridge-connecting' | 'bridge-connected' | 'model-loading' | 'model-ready' | 'source-starting' | 'source-ready' | 'stopping-source' | 'stopping-bridge' | 'stopping-service'
+  step:
+    | 'health-checking'
+    | 'health-ok'
+    | 'service-starting'
+    | 'service-ready'
+    | 'bridge-connecting'
+    | 'bridge-connected'
+    | 'model-loading'
+    | 'model-ready'
+    | 'source-starting'
+    | 'source-ready'
+    | 'stopping-source'
+    | 'stopping-bridge'
+    | 'stopping-service'
 }
 
 /**
@@ -172,6 +186,7 @@ git commit -m "feat: 更新 WebSocket 类型定义，新增转录状态/进度/�
 ### Task 2: websocket.ts 增加 connection-count 广播
 
 **Files:**
+
 - Modify: `server/utils/websocket.ts`
 
 - [ ] **Step 1: 在 addConnection/removeConnection 中触发广播**
@@ -196,7 +211,7 @@ export function removeConnection(peer: any) {
 function broadcastConnectionCount() {
   broadcast({
     type: 'connection-count',
-    data: { count: activeConnections.size }
+    data: { count: activeConnections.size },
   })
 }
 
@@ -236,6 +251,7 @@ git commit -m "feat: 连接数变化时自动广播 connection-count 消息"
 ### Task 3: transcription-manager 重构 + 删除旧 API 端点
 
 **Files:**
+
 - Modify: `server/utils/transcription-manager.ts`
 - Delete: `server/routes/api/asr/start.ts`
 - Delete: `server/routes/api/asr/stop.ts`
@@ -256,6 +272,7 @@ rm server/routes/api/asr/status.ts
 将 `transcription-manager.ts` 中的私有函数改为通过公开方法暴露。移除 `start()` 和 `stop()` 方法（这些由 Orchestrator 接管），保留 ASR 结果处理和音频转发逻辑。将 `_broadcastStatus()` 替换为发送 `transcription-status` 消息。
 
 关键变更：
+
 1. 移除 `start()` 和 `stop()` 公开方法
 2. 新增 `connectBridge(config)`, `disconnectBridge()`, `onReady(callback)`, `stopStreamSource()`, `sendAudioChunk(data)`, `isBridgeConnected()`, `getBridgeStatus()`, `setManagerState(state)`
 3. 将 `bridgeConnect()` 改为接受 config 参数的 `connectBridge()`
@@ -264,7 +281,12 @@ rm server/routes/api/asr/status.ts
 
 ```typescript
 import { WebSocket } from 'ws'
-import type { WSMessage, WSCurrentData, WSConfirmedData, TranscriptionStatusData } from '../../types/websocket'
+import type {
+  WSMessage,
+  WSCurrentData,
+  WSConfirmedData,
+  TranscriptionStatusData,
+} from '../../types/websocket'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
 import { stopSimulation } from './simulator'
@@ -329,7 +351,7 @@ function processResult(result: { type: string; text: string; language: string })
       text: result.text,
       enText: '',
       version: partialVersion,
-      enVersion: 0
+      enVersion: 0,
     }
     broadcast({ type: 'current', data })
     transcriptionState.currentSubtitle = {
@@ -337,7 +359,7 @@ function processResult(result: { type: string; text: string; language: string })
       enText: '',
       version: partialVersion,
       enVersion: 0,
-      startTime: Date.now()
+      startTime: Date.now(),
     }
   } else if (result.type === 'final') {
     partialVersion = 0
@@ -346,7 +368,7 @@ function processResult(result: { type: string; text: string; language: string })
       id,
       text: result.text,
       optimizedText: '',
-      enText: ''
+      enText: '',
     }
     broadcast({ type: 'confirmed', data })
     broadcast({ type: 'current', data: { text: '', enText: '', version: 0, enVersion: 0 } })
@@ -354,11 +376,14 @@ function processResult(result: { type: string; text: string; language: string })
     transcriptionState.confirmedSubtitles.push({
       id,
       text: result.text,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
-    processAI(result.text).then(ai => {
-      broadcast({ type: 'ai-processed', data: { id, optimizedText: ai.optimizedText, enText: ai.enText } })
-      const subtitle = transcriptionState.confirmedSubtitles.find(s => s.id === id)
+    processAI(result.text).then((ai) => {
+      broadcast({
+        type: 'ai-processed',
+        data: { id, optimizedText: ai.optimizedText, enText: ai.enText },
+      })
+      const subtitle = transcriptionState.confirmedSubtitles.find((s) => s.id === id)
       if (subtitle) {
         subtitle.optimizedText = ai.optimizedText
         subtitle.enText = ai.enText
@@ -389,24 +414,39 @@ function _onError(error: Error): void {
 // === 状态广播 ===
 
 export function broadcastStatus(): void {
-  const sourceLabel = currentSource === 'mic' ? '麦克风' : currentSource === 'file' ? '文件' : currentSource === 'stream' ? '直播流' : ''
+  const sourceLabel =
+    currentSource === 'mic'
+      ? '麦克风'
+      : currentSource === 'file'
+        ? '文件'
+        : currentSource === 'stream'
+          ? '直播流'
+          : ''
   const sourceStatus = audioSource?.getStatus()
   const audioDetail = sourceStatus
-    ? (sourceStatus.state === 'running' ? '运行中' : sourceStatus.state === 'connecting' ? '连接中' : sourceStatus.state === 'error' ? '错误' : undefined)
-    : (managerState === 'running' && currentSource ? '运行中' : undefined)
+    ? sourceStatus.state === 'running'
+      ? '运行中'
+      : sourceStatus.state === 'connecting'
+        ? '连接中'
+        : sourceStatus.state === 'error'
+          ? '错误'
+          : undefined
+    : managerState === 'running' && currentSource
+      ? '运行中'
+      : undefined
 
   const data: TranscriptionStatusData = {
     state: managerState,
     audio: {
       active: currentSource !== null,
       label: sourceLabel,
-      detail: audioDetail
+      detail: audioDetail,
     },
     recognition: {
       active: bridgeStatus === 'connected' && asrReady,
-      detail: bridgeStatus === 'connected' ? (asrReady ? '运行中' : '加载中') : '已停止'
+      detail: bridgeStatus === 'connected' ? (asrReady ? '运行中' : '加载中') : '已停止',
     },
-    uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
+    uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
   }
   broadcast({ type: 'transcription-status', data })
 }
@@ -425,13 +465,19 @@ export const transcriptionManager = {
       ws.on('open', () => {
         bridgeStatus = 'connected'
         console.log(`[TranscriptionManager] ASR 已连接: ${bridgeConfig!.url}`)
-        ws!.send(JSON.stringify({
-          type: 'config',
-          provider: bridgeConfig!.provider,
-          model: bridgeConfig!.model,
-          ...(bridgeConfig!.overlap_sec !== undefined ? { overlap_sec: bridgeConfig!.overlap_sec } : {}),
-          ...(bridgeConfig!.memory_chunks !== undefined ? { memory_chunks: bridgeConfig!.memory_chunks } : {}),
-        }))
+        ws!.send(
+          JSON.stringify({
+            type: 'config',
+            provider: bridgeConfig!.provider,
+            model: bridgeConfig!.model,
+            ...(bridgeConfig!.overlap_sec !== undefined
+              ? { overlap_sec: bridgeConfig!.overlap_sec }
+              : {}),
+            ...(bridgeConfig!.memory_chunks !== undefined
+              ? { memory_chunks: bridgeConfig!.memory_chunks }
+              : {}),
+          }),
+        )
       })
 
       ws.on('message', (data: Buffer) => {
@@ -574,7 +620,7 @@ export const transcriptionManager = {
 
   isActive(): boolean {
     return managerState !== 'idle'
-  }
+  },
 }
 ```
 
@@ -590,13 +636,20 @@ git commit -m "refactor: 重构 transcription-manager，暴露公开方法供编
 ### Task 4: WS handler 增强 init 消息
 
 **Files:**
+
 - Modify: `server/routes/api/ws.ts`
 
 - [ ] **Step 1: 增强 init 消息，包含转录状态和连接数**
 
 ```typescript
 import type { WSMessage } from '../../../types/websocket'
-import { addConnection, removeConnection, sendTo, getConnectionCount, broadcast } from '../../utils/websocket'
+import {
+  addConnection,
+  removeConnection,
+  sendTo,
+  getConnectionCount,
+  broadcast,
+} from '../../utils/websocket'
 import { transcriptionState } from '../../utils/transcription-state'
 import { transcriptionManager } from '../../utils/transcription-manager'
 
@@ -614,15 +667,22 @@ export default defineWebSocketHandler({
           state: transcriptionManager.getState(),
           audio: {
             active: transcriptionManager.isActive(),
-            label: transcriptionManager.getSource() === 'mic' ? '麦克风' : transcriptionManager.getSource() === 'file' ? '文件' : transcriptionManager.getSource() === 'stream' ? '直播流' : '',
+            label:
+              transcriptionManager.getSource() === 'mic'
+                ? '麦克风'
+                : transcriptionManager.getSource() === 'file'
+                  ? '文件'
+                  : transcriptionManager.getSource() === 'stream'
+                    ? '直播流'
+                    : '',
           },
           recognition: {
             active: transcriptionManager.isBridgeConnected() && transcriptionManager.isASRReady(),
           },
-          uptime: 0
+          uptime: 0,
         },
-        connectionCount: getConnectionCount()
-      }
+        connectionCount: getConnectionCount(),
+      },
     }
     sendTo(peer, initMessage)
   },
@@ -643,7 +703,7 @@ export default defineWebSocketHandler({
   error(peer, error) {
     console.error(`WebSocket error: ${error}`)
     removeConnection(peer)
-  }
+  },
 })
 ```
 
@@ -659,6 +719,7 @@ git commit -m "feat: 增强 WS init 消息，包含转录状态和连接数"
 ### Task 5: 新增 transcription-orchestrator
 
 **Files:**
+
 - Create: `server/utils/transcription-orchestrator.ts`
 
 - [ ] **Step 1: 实现链式编排器**
@@ -695,21 +756,19 @@ function broadcastProgress(step: TranscriptionProgressData['step']): void {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  stepName: string,
-  maxRetries = 3
-): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, stepName: string, maxRetries = 3): Promise<T> {
   const delays = [1000, 2000, 4000]
   for (let i = 0; i <= maxRetries; i++) {
     try {
       return await fn()
     } catch (e: any) {
       if (i === maxRetries) throw e
-      console.log(`[Orchestrator] ${stepName} 失败，${delays[i] / 1000}s 后重试 (${i + 1}/${maxRetries}): ${e.message}`)
+      console.log(
+        `[Orchestrator] ${stepName} 失败，${delays[i] / 1000}s 后重试 (${i + 1}/${maxRetries}): ${e.message}`,
+      )
       await delay(delays[i])
     }
   }
@@ -766,8 +825,14 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
   let readyInterval: ReturnType<typeof setInterval> | null = null
   const cleanup = () => {
     cancelled = true
-    if (checkInterval) { clearInterval(checkInterval); checkInterval = null }
-    if (readyInterval) { clearInterval(readyInterval); readyInterval = null }
+    if (checkInterval) {
+      clearInterval(checkInterval)
+      checkInterval = null
+    }
+    if (readyInterval) {
+      clearInterval(readyInterval)
+      readyInterval = null
+    }
   }
 
   return new Promise<void>((resolve, reject) => {
@@ -917,7 +982,10 @@ export const orchestrator = {
     await doStop()
   },
 
-  async switchSource(newSource: SourceType, streamUrl?: string): Promise<{ success: boolean; error?: string }> {
+  async switchSource(
+    newSource: SourceType,
+    streamUrl?: string,
+  ): Promise<{ success: boolean; error?: string }> {
     if (state !== 'running') {
       return { success: false, error: '不在运行状态' }
     }
@@ -963,7 +1031,7 @@ export const orchestrator = {
     return {
       state,
       source: currentConfig?.source ?? null,
-      error: errorDetail
+      error: errorDetail,
     }
   },
 
@@ -1023,7 +1091,7 @@ export const orchestrator = {
         transcriptionManager.setManagerState('error')
       }
     }
-  }
+  },
 }
 ```
 
@@ -1039,6 +1107,7 @@ git commit -m "feat: 新增转录编排器，链式启动/停止/重试/热切�
 ### Task 6: 新增 API 端点
 
 **Files:**
+
 - Create: `server/routes/api/transcription/start.ts`
 - Create: `server/routes/api/transcription/stop.ts`
 - Create: `server/routes/api/transcription/switch-source.ts`
@@ -1057,30 +1126,30 @@ export default defineEventHandler(async (event) => {
   if (source && !VALID_SOURCES.includes(source)) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
+      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`,
     })
   }
 
   if (orchestrator.isActive()) {
     throw createError({
       statusCode: 409,
-      statusMessage: '转录正在运行或操作中'
+      statusMessage: '转录正在运行或操作中',
     })
   }
 
   const result = await orchestrator.start({
-    source: (source || 'mic') as typeof VALID_SOURCES[number],
+    source: (source || 'mic') as (typeof VALID_SOURCES)[number],
     streamUrl,
     provider,
     model,
     overlapSec,
-    memoryChunks
+    memoryChunks,
   })
 
   if (!result.success) {
     throw createError({
       statusCode: 500,
-      statusMessage: result.error || '启动失败'
+      statusMessage: result.error || '启动失败',
     })
   }
 
@@ -1113,19 +1182,19 @@ export default defineEventHandler(async (event) => {
   if (!source || !VALID_SOURCES.includes(source)) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`
+      statusMessage: `Invalid source. Must be one of: ${VALID_SOURCES.join(', ')}`,
     })
   }
 
   const result = await orchestrator.switchSource(
-    source as typeof VALID_SOURCES[number],
-    streamUrl
+    source as (typeof VALID_SOURCES)[number],
+    streamUrl,
   )
 
   if (!result.success) {
     throw createError({
       statusCode: 500,
-      statusMessage: result.error || '切换失败'
+      statusMessage: result.error || '切换失败',
     })
   }
 
@@ -1145,12 +1214,17 @@ git commit -m "feat: 新增转录 API 端点（start/stop/switch-source）"
 ### Task 7: 新增 useTranscription composable
 
 **Files:**
+
 - Create: `composables/useTranscription.ts`
 
 - [ ] **Step 1: 实现 useTranscription composable**
 
 ```typescript
-import type { WSMessage, TranscriptionStatusData, TranscriptionProgressData } from '~/types/websocket'
+import type {
+  WSMessage,
+  TranscriptionStatusData,
+  TranscriptionProgressData,
+} from '~/types/websocket'
 
 interface TranscriptionAudioState {
   active: boolean
@@ -1229,11 +1303,17 @@ export function useTranscription() {
     }
   }
 
-  async function startTranscription(config: { source: string; streamUrl?: string; provider?: string; overlapSec?: number; memoryChunks?: number }) {
+  async function startTranscription(config: {
+    source: string
+    streamUrl?: string
+    provider?: string
+    overlapSec?: number
+    memoryChunks?: number
+  }) {
     try {
       await $fetch('/api/transcription/start', {
         method: 'POST',
-        body: config
+        body: config,
       })
     } catch (e: any) {
       error.value = e?.data?.message || e.message || '启动失败'
@@ -1252,7 +1332,7 @@ export function useTranscription() {
     try {
       await $fetch('/api/transcription/switch-source', {
         method: 'POST',
-        body: config
+        body: config,
       })
     } catch (e: any) {
       error.value = e?.data?.message || e.message || '切换失败'
@@ -1275,7 +1355,7 @@ export function useTranscription() {
     handleWSMessage,
     startTranscription,
     stopTranscription,
-    switchSource
+    switchSource,
   }
 }
 ```
@@ -1292,6 +1372,7 @@ git commit -m "feat: 新增 useTranscription composable，管理 WS 推送的转
 ### Task 8: 新增 TranscriptionControlPanel 组件
 
 **Files:**
+
 - Create: `components/admin/TranscriptionControlPanel.vue`
 
 - [ ] **Step 1: 实现合并后的转录控制面板**
@@ -1299,6 +1380,7 @@ git commit -m "feat: 新增 useTranscription composable，管理 WS 推送的转
 此组件合并了 ASRControlPanel 和 ModelStatusPanel 的功能。复制 `components/admin/ASRControlPanel.vue` 的音频源 UI 部分，加上新的状态展示和一键控制逻辑。
 
 组件结构：
+
 - 音频源选择区域（mic/file/stream 三个按钮）
 - 源配置区域（按当前选择的源显示不同 UI）
 - 状态展示区域（总状态 + 音频状态 + 识别状态 + 运行时长）
@@ -1310,6 +1392,7 @@ git commit -m "feat: 新增 useTranscription composable，管理 WS 推送的转
 由于此组件较大（约 600-800 行，包含模板、脚本和样式），实现时应参考现有 `ASRControlPanel.vue` 的样式和 `ModelStatusPanel.vue` 的状态展示逻辑。保持与现有面板一致的视觉风格（Orbitron 字体、渐变背景、状态颜色）。
 
 关键行为：
+
 1. `onMounted` 时枚举设备、加载 ASR 默认配置，但不启动 mic 采集
 2. 监听 `useTranscription.handleWSMessage` 处理 WS 消息
 3. 收到 `audio-source-start` 时启动对应音频源（mic 采集 / file 播放）
@@ -1331,11 +1414,13 @@ git commit -m "feat: 新增 TranscriptionControlPanel 合并面板"
 ### Task 9: admin.vue 集成
 
 **Files:**
+
 - Modify: `pages/admin.vue`
 
 - [ ] **Step 1: 更新 admin.vue，替换面板组件**
 
 变更要点：
+
 1. 移除 `asrPanelRef`、`asrSourceConfig`、`asrIsLoading` 等旧状态
 2. 移除 `handleSourceSave`、`handleASRStart`、`handleASRStop` 等旧方法
 3. 移除 `fetchStatus` 轮询及其 `statusInterval` 定时器
@@ -1365,6 +1450,7 @@ git commit -m "feat: admin.vue 集成 TranscriptionControlPanel，移除旧面�
 ### Task 10: 清理旧文件和残留引用
 
 **Files:**
+
 - Delete: `components/admin/ASRControlPanel.vue`
 - Delete: `components/admin/ModelStatusPanel.vue`
 - Modify: `types/websocket.ts` — 移除 `'status'` 消息类型和 `WSStatusData`
@@ -1381,6 +1467,7 @@ rm components/admin/ModelStatusPanel.vue
 - [ ] **Step 2: 从 WSMessageType 中移除废弃的 'status' 类型**
 
 在 `types/websocket.ts` 中：
+
 - 移除 `'status'` 从 `WSMessageType` 联合类型
 - 删除 `WSStatusData` 接口
 - 从 `WSMessage.data` 联合类型中移除 `WSStatusData`
@@ -1420,6 +1507,7 @@ pnpm dev
 ```
 
 在浏览器中打开 admin 页面，验证：
+
 1. 面板正确显示
 2. 状态默认为 idle
 3. 音频源选择 UI 正常
