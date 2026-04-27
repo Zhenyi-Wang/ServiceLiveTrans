@@ -1,5 +1,5 @@
 import type { CurrentSubtitle, ConfirmedSubtitle } from '~/types/subtitle'
-import type { WSAIProcessedData, WSMessage } from '~/types/websocket'
+import type { WSInitData, WSCurrentData, WSConfirmedData, WSAIProcessedData, WSMessage } from '~/types/websocket'
 import type { ConnectionStatus } from './useWebSocket'
 
 export type LanguageMode = 'chinese' | 'english' | 'bilingual'
@@ -20,9 +20,9 @@ export function useSubtitles() {
   // 处理 WebSocket 消息
   const handleMessage = (message: WSMessage) => {
     switch (message.type) {
-      case 'init':
-        if (message.data && 'current' in message.data) {
-          const data = message.data as any
+      case 'init': {
+        const data = message.data as WSInitData | null
+        if (data && 'current' in data) {
           currentSubtitle.value = data.current ? {
             text: data.current,
             enText: '',
@@ -33,12 +33,11 @@ export function useSubtitles() {
           confirmedSubtitles.value = data.confirmed || []
         }
         break
+      }
 
-      case 'current':
-        if (message.data && 'text' in message.data) {
-          const data = message.data as any
-
-          // 中文版本更新
+      case 'current': {
+        const data = message.data as WSCurrentData | null
+        if (data && 'text' in data) {
           if (data.version > currentVersion.value) {
             currentVersion.value = data.version
             currentSubtitle.value = {
@@ -50,7 +49,6 @@ export function useSubtitles() {
             }
           }
 
-          // 英文版本更新（enText 非空且 enVersion 更新）
           if (data.enText && data.enVersion > currentEnVersion.value) {
             currentEnVersion.value = data.enVersion
             if (currentSubtitle.value) {
@@ -60,21 +58,18 @@ export function useSubtitles() {
           }
         }
         break
+      }
 
-      case 'confirmed':
-        if (message.data && 'id' in message.data) {
-          const data = message.data as any
+      case 'confirmed': {
+        const data = message.data as WSConfirmedData | null
+        if (data && 'id' in data) {
           const existingIndex = confirmedSubtitles.value.findIndex(s => s.id === data.id)
 
           if (existingIndex !== -1) {
-            // 已存在：更新数据
-            confirmedSubtitles.value[existingIndex] = {
-              ...confirmedSubtitles.value[existingIndex],
-              optimizedText: data.optimizedText,
-              enText: data.enText
-            }
+            const existing = confirmedSubtitles.value[existingIndex]
+            existing.optimizedText = data.optimizedText
+            existing.enText = data.enText
           } else {
-            // 不存在：添加新字幕
             const newSubtitle: ConfirmedSubtitle = {
               id: data.id,
               text: data.text,
@@ -83,17 +78,17 @@ export function useSubtitles() {
               timestamp: Date.now()
             }
             confirmedSubtitles.value.push(newSubtitle)
-            // 清空当前输入
             currentSubtitle.value = null
             currentVersion.value = 0
             currentEnVersion.value = 0
           }
         }
         break
+      }
 
-      case 'ai-processed':
-        if (message.data && 'id' in message.data) {
-          const data = message.data as WSAIProcessedData
+      case 'ai-processed': {
+        const data = message.data as WSAIProcessedData | null
+        if (data && 'id' in data) {
           const existing = confirmedSubtitles.value.find(s => s.id === data.id)
           if (existing) {
             existing.optimizedText = data.optimizedText
@@ -101,6 +96,7 @@ export function useSubtitles() {
           }
         }
         break
+      }
 
       case 'clear':
         currentSubtitle.value = null

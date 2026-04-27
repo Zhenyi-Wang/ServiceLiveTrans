@@ -17,6 +17,10 @@ logs
 .DS_Store
 .fleet
 .idea
+.playwright-mcp/
+
+# Screenshots / debug artifacts (root-level only)
+/*.png
 
 # Local env files
 .env

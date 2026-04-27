@@ -462,8 +462,11 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+</style>
+
+<style scoped>
 
 .control-room {
   min-height: 100vh;
