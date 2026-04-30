@@ -54,7 +54,22 @@ class QwenASREngine:
         # 3. 加载识别 LLM
         self.model = llama.LlamaModel(llm_gguf, use_gpu=config.llm_use_gpu)
         self.embedding_table = llama.get_token_embeddings_gguf(llm_gguf)
-        self.ctx = llama.LlamaContext(self.model, n_ctx=config.n_ctx, n_batch=4096, embeddings=False)
+
+        # 动态计算 n_batch 和 n_ubatch：Qwen3 多平面位置编码需要 pos_arr = total_len × 4
+        # 每秒音频约 13 embedding frames，需覆盖 (memory_num + 1) 个 chunk + prefix/suffix 余量
+        frames_per_chunk = int(config.chunk_size * 13)
+        total_max_frames = frames_per_chunk * (config.memory_num + 1) + 500  # 500 for prefix/suffix tokens
+        # n_batch 需要覆盖 pos_arr 长度 (total_len × 4)
+        n_batch = max(4096, ((total_max_frames * 4 + 4095) // 4096) * 4096)  # 向上对齐到 4096
+        # n_ubatch 覆盖 total_len
+        n_ubatch = max(512, ((total_max_frames + 511) // 512) * 512)  # 向上对齐到 512
+        # causal attention (attention_type=0)：Qwen3-ASR 需要 causal attention（实测验证）
+        # causal 模式下 llama.cpp 会将 n_batch 限制到 min(n_ctx, params.n_batch)
+        # 因此 n_ctx 必须足够大以容纳 total_len × 4（mrope 四平面位置编码）
+        required_ctx = n_batch + 4096  # n_batch 已经是 total_max_frames * 4 向上对齐
+        if config.n_ctx < required_ctx:
+            config.n_ctx = required_ctx
+        self.ctx = llama.LlamaContext(self.model, n_ctx=config.n_ctx, n_batch=n_batch, n_ubatch=n_ubatch, embeddings=False, attention_type=0)
 
         # 缓存 Token ID
         self.ID_IM_START = self.model.token_to_id("<|im_start|>")

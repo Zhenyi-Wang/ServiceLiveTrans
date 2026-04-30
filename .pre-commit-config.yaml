@@ -15,6 +15,7 @@ repos:
         entry: /home/zhenyi/miniconda3/envs/funasr/bin/ruff check
         language: system
         types: [python]
+        pass_filenames: false
         always_run: true
 
       - id: ruff-format
@@ -22,6 +23,7 @@ repos:
         entry: /home/zhenyi/miniconda3/envs/funasr/bin/ruff format --check
         language: system
         types: [python]
+        pass_filenames: false
         always_run: true
 
   # --- Frontend checks ---
