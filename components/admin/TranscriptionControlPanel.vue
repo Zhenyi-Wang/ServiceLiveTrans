@@ -22,11 +22,11 @@ const { send: wsSend } = useWebSocket({
     if (msg.type === 'audio-source-start') {
       const data = msg.data as AudioSourceCommandData
       if (data.source === 'mic') {
-        stopMicCapture()
-        startMicCapture()
+        micSendAudio.value = true
+        ensureMicMonitoring()
       }
     } else if (msg.type === 'audio-source-stop') {
-      stopCapture()
+      micSendAudio.value = false
     }
     // 处理转录状态消息
     transcription.handleWSMessage(msg)
@@ -124,6 +124,29 @@ const stepLabels: Record<string, string> = {
   'stopping-service': '停止服务...',
 }
 
+// 进行中的步骤（显示旋转图标），其余为完成态（显示对勾）
+const loadingSteps = new Set([
+  'health-checking',
+  'service-starting',
+  'bridge-connecting',
+  'model-loading',
+  'source-starting',
+  'stopping-source',
+  'stopping-bridge',
+  'stopping-service',
+])
+
+function isStepLoading(step: string): boolean {
+  return loadingSteps.has(step)
+}
+
+// ─── Waveform state ────────────────────────────────────────
+const waveformState = computed<'idle' | 'preview' | 'active'>(() => {
+  if (isMicMonitoring.value && micSendAudio.value) return 'active'
+  if (isMicMonitoring.value && !micSendAudio.value) return 'preview'
+  return 'idle'
+})
+
 // ─── State derived ─────────────────────────────────────────
 const stateLabel = computed(() => {
   const s = transcription.state.value
@@ -185,10 +208,11 @@ function handleDeviceChange() {
 
 // ─── Audio capture (mic) ───────────────────────────────────
 const isMicMonitoring = ref(false)
+const micSendAudio = ref(false)
 const micVolumeWatcher = ref<WatchStopHandle | null>(null)
 const audioCapture = shallowRef<ReturnType<typeof useAudioCapture> | null>(null)
 
-async function startMicCapture(sendAudio = true) {
+async function startMicCapture() {
   if (isMicMonitoring.value) return
   const capture = useAudioCapture({
     deviceId: selectedDeviceId.value || undefined,
@@ -196,27 +220,40 @@ async function startMicCapture(sendAudio = true) {
     noiseSuppression: advancedSettings.value.noiseSuppression,
     targetSampleRate: advancedSettings.value.targetSampleRate,
     chunkDurationMs: advancedSettings.value.chunkDurationMs,
-    onAudioChunk: sendAudio
-      ? (base64Pcm) => {
-          wsSend({ type: 'audio', data: base64Pcm })
-        }
-      : undefined,
+    onAudioChunk: (base64Pcm) => {
+      if (micSendAudio.value) {
+        wsSend({ type: 'audio', data: base64Pcm })
+      }
+    },
     onError: (msg) => {
       setStatus(msg, 'error')
     },
   })
   capture.volume.value = sliderToGain(micVolume.value)
+  await capture.start()
+  // start() 成功后才设置状态，避免失败时泄漏 watcher
   audioCapture.value = capture
   micVolumeWatcher.value = watch(micVolume, (v) => {
     const c = audioCapture.value
     if (c) c.volume.value = sliderToGain(v)
   })
-  await capture.start()
   micWaveform.drawRealtimeWaveform(capture.analyserNode.value ?? null)
   isMicMonitoring.value = true
 }
 
+/** 确保麦克风监控正在运行，仅在用户手势上下文中调用 */
+async function ensureMicMonitoring() {
+  if (isMicMonitoring.value) return
+  try {
+    await startMicCapture()
+  } catch {
+    // 浏览器拒绝 getUserMedia（非用户手势），画空闲波形线
+    micWaveform.drawRealtimeWaveform(null)
+  }
+}
+
 function stopMicCapture() {
+  micSendAudio.value = false
   if (micVolumeWatcher.value) {
     micVolumeWatcher.value()
     micVolumeWatcher.value = null
@@ -289,6 +326,9 @@ async function toggleAudio() {
       setStatus('请先启动识别服务', 'error')
       return
     }
+    if (source.value === 'mic') {
+      await ensureMicMonitoring()
+    }
     audioLoading.value = true
     try {
       await transcription.startAudioOnly({
@@ -312,6 +352,9 @@ async function toggleRecognition() {
   if (recognitionLoading.value) return
 
   if (!transcription.recognition.value.active) {
+    if (source.value === 'mic') {
+      await ensureMicMonitoring()
+    }
     recognitionLoading.value = true
     try {
       await transcription.startRecognitionOnly({
@@ -358,20 +401,26 @@ function handleSourceSelect(newSource: 'mic' | 'stream') {
       ...(newSource === 'stream' ? { streamUrl: streamUrl.value || DEFAULT_STREAM_URL } : {}),
     })
   }
+  if (newSource === 'stream') {
+    stopMicCapture()
+    micWaveform.stopAnimation()
+  }
   source.value = newSource
   statusMessage.value = ''
 }
 
 // ─── Watchers ──────────────────────────────────────────────
 // 音源切换（非运行态）
-watch(source, (val) => {
+watch(source, (val, oldVal) => {
   if (transcription.state.value === 'running') return
   statusMessage.value = ''
-  stopMicCapture()
-  micWaveform.stopAnimation()
+  if (oldVal === 'mic') {
+    stopMicCapture()
+    micWaveform.stopAnimation()
+  }
   nextTick(async () => {
     if (val === 'mic') {
-      await startMicCapture(false)
+      await ensureMicMonitoring()
     }
   })
 })
@@ -394,6 +443,8 @@ watch(
 onMounted(() => {
   if (import.meta.client) {
     fetchASRConfig()
+    // 画空闲波形线，避免加载后画布空白
+    nextTick(() => micWaveform.drawRealtimeWaveform(null))
   }
   enumerateDevices()
   navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange)
@@ -456,8 +507,20 @@ onUnmounted(() => {
         </div>
 
         <div class="form-row">
-          <label class="form-label">波形</label>
-          <div class="waveform-container">
+          <label class="form-label">
+            波形
+            <button
+              v-if="waveformState === 'idle'"
+              class="waveform-preview-btn"
+              @click="ensureMicMonitoring()"
+            >
+              预览
+            </button>
+            <span v-else class="waveform-state-tag" :class="waveformState">
+              {{ waveformState === 'preview' ? '预览中' : '录制中' }}
+            </span>
+          </label>
+          <div class="waveform-container" :class="waveformState">
             <canvas ref="micCanvasRef" class="waveform-canvas" />
           </div>
         </div>
@@ -506,8 +569,22 @@ onUnmounted(() => {
         </div>
 
         <!-- Progress step -->
-        <div v-if="transcription.currentStep.value" class="progress-step">
-          <div class="progress-spinner"></div>
+        <div
+          v-if="transcription.currentStep.value"
+          class="progress-step"
+          :class="{ 'progress-done': !isStepLoading(transcription.currentStep.value) }"
+        >
+          <div v-if="isStepLoading(transcription.currentStep.value)" class="progress-spinner"></div>
+          <svg
+            v-else
+            class="progress-check"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
           <span>{{
             stepLabels[transcription.currentStep.value] || transcription.currentStep.value
           }}</span>
@@ -1009,12 +1086,56 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(56, 189, 248, 0.15);
+  transition: opacity 0.3s ease;
+}
+
+.waveform-container.idle {
+  opacity: 0.35;
+}
+
+.waveform-container.preview {
+  opacity: 0.55;
+}
+
+.waveform-container.active {
+  opacity: 1;
 }
 
 .waveform-canvas {
   width: 100%;
   height: 60px;
   display: block;
+}
+
+.waveform-preview-btn {
+  padding: 0.1rem 0.5rem;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.05em;
+}
+
+.waveform-preview-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.waveform-state-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+}
+
+.waveform-state-tag.preview {
+  color: rgba(251, 191, 36, 0.8);
+}
+
+.waveform-state-tag.active {
+  color: #22d3ee;
 }
 
 /* ── Status block ── */
@@ -1096,6 +1217,18 @@ onUnmounted(() => {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
+}
+
+.progress-done {
+  background: rgba(16, 185, 129, 0.08);
+  color: #10b981;
+}
+
+.progress-check {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: #10b981;
 }
 
 @keyframes spin {

@@ -54,6 +54,7 @@ export function useTranscription() {
           audio.value = ts.audio
           recognition.value = ts.recognition
           error.value = ts.error
+          currentStep.value = ts.currentStep ?? null
           if (ts.uptime > 0) {
             uptime.value = ts.uptime
             if (ts.state === 'running') startUptimeCounter()
@@ -70,6 +71,7 @@ export function useTranscription() {
         audio.value = data.audio
         recognition.value = data.recognition
         error.value = data.error
+        currentStep.value = data.currentStep ?? null
         if (data.uptime > 0) {
           uptime.value = data.uptime
           if (data.state === 'running') startUptimeCounter()

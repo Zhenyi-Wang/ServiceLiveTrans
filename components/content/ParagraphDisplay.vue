@@ -19,9 +19,8 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const emit = defineEmits<{
+defineEmits<{
   scroll: [event: Event]
-  'container-ref': [el: HTMLElement | null]
 }>()
 
 const articleClasses = computed(() => ({
@@ -33,19 +32,10 @@ const articleClasses = computed(() => ({
 const contentClasses = computed(() => ({
   'english-content': props.language === 'english',
 }))
-
-const setScrollContainerRef = (el: HTMLElement | null) => {
-  emit('container-ref', el)
-}
 </script>
 
 <template>
-  <div
-    :ref="setScrollContainerRef"
-    class="article-display"
-    :class="articleClasses"
-    @scroll="$emit('scroll', $event)"
-  >
+  <div class="article-display" :class="articleClasses" @scroll="$emit('scroll', $event)">
     <div
       v-for="(paragraph, index) in paragraphs"
       :key="`${language}-${index}`"

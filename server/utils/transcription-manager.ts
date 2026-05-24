@@ -1,5 +1,10 @@
 import { WebSocket } from 'ws'
-import type { WSCurrentData, WSConfirmedData, TranscriptionStatusData } from '../../types/websocket'
+import type {
+  WSCurrentData,
+  WSConfirmedData,
+  TranscriptionStatusData,
+  TranscriptionProgressData,
+} from '../../types/websocket'
 import type { ASRConfigSnake } from '../../types/asr'
 import { broadcast } from './websocket'
 import { transcriptionState } from './transcription-state'
@@ -41,6 +46,7 @@ let startTime: number | null = null
 // 由 Orchestrator 管理的公共状态
 let managerState: 'idle' | 'starting' | 'running' | 'stopping' | 'error' = 'idle'
 let currentSource: SourceType | null = null
+let currentStep: TranscriptionProgressData['step'] | null = null
 
 // === ASR Bridge ===
 
@@ -163,6 +169,7 @@ export function getStatusData(): TranscriptionStatusData {
     },
     uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
     ...(cachedASRConfig ? { asrConfig: cachedASRConfig } : {}),
+    currentStep,
   }
 }
 
@@ -311,6 +318,10 @@ export const transcriptionManager = {
     currentSource = source
   },
 
+  setCurrentStep(step: TranscriptionProgressData['step'] | null): void {
+    currentStep = step
+  },
+
   getSource(): SourceType | null {
     return currentSource
   },
@@ -340,6 +351,7 @@ export const transcriptionManager = {
     bridgeConfig = null
     startTime = null
     currentSource = null
+    currentStep = null
     managerState = 'idle'
     transcriptionState.isActive = false
     transcriptionState.source = null

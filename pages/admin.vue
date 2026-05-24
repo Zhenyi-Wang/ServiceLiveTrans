@@ -273,6 +273,9 @@ onUnmounted(() => {
           @counts-update="handleCountsUpdate"
         />
 
+        <!-- AI 控制面板 -->
+        <AdminAIControlPanel />
+
         <!-- 开发测试工具（折叠） -->
         <div class="dev-tools-section">
           <button class="dev-tools-toggle" @click="devToolsOpen = !devToolsOpen">

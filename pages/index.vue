@@ -48,14 +48,10 @@ const {
 } = useFullscreen()
 
 // 联动滚动
-const {
-  scrollToBottom,
-  onChineseScroll,
-  onEnglishScroll,
-  watchDataAndScroll,
-  chineseScrollContainer,
-  englishScrollContainer,
-} = useScrollSync(configSyncScroll, configAutoScroll)
+const { scrollToBottom, onChineseScroll, onEnglishScroll, watchDataAndScroll } = useScrollSync(
+  configSyncScroll,
+  configAutoScroll,
+)
 
 const { getChineseParagraphs, getEnglishParagraphs } = useParagraphLogic(
   confirmedSubtitles,
@@ -134,7 +130,6 @@ const handleToggleAutoScroll = () => {
           @toggle-auto-scroll="handleToggleAutoScroll"
           @scroll-to-bottom="scrollToBottom"
           @scroll="onChineseScroll"
-          @container-ref="(el: HTMLElement | null) => (chineseScrollContainer.value = el)"
         />
 
         <!-- 分隔线 -->
@@ -156,7 +151,7 @@ const handleToggleAutoScroll = () => {
           @toggle-auto-scroll="handleToggleAutoScroll"
           @scroll-to-bottom="scrollToBottom"
           @scroll="onEnglishScroll"
-          @container-ref="(el: HTMLElement | null) => (englishScrollContainer.value = el)"
+        />
         />
       </div>
     </div>

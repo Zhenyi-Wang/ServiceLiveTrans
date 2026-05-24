@@ -74,6 +74,7 @@ export interface TranscriptionStatusData {
   error?: string
   uptime: number
   asrConfig?: Record<string, unknown>
+  currentStep?: TranscriptionProgressData['step'] | null
 }
 
 /**

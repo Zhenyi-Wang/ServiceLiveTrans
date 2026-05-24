@@ -23,6 +23,7 @@ const completedSteps = new Set<string>()
 let errorDetail: string | null = null
 
 function broadcastProgress(step: TranscriptionProgressData['step']): void {
+  transcriptionManager.setCurrentStep(step || null)
   broadcast({ type: 'transcription-progress', data: { step } })
 }
 
@@ -130,6 +131,8 @@ async function connectAndLoadModel(config: StartConfig): Promise<void> {
         broadcastProgress('bridge-connected')
         completedSteps.add('bridge')
 
+        broadcastProgress('model-loading')
+
         readyInterval = setInterval(() => {
           if (cancelled) return
           if (transcriptionManager.isASRReady()) {
@@ -194,6 +197,7 @@ function updateOverallState(): void {
     errorDetail = null
   }
   broadcastStatus()
+  transcriptionManager.setCurrentStep(null)
   broadcast({ type: 'transcription-progress', data: { step: '' } })
 }
 
@@ -260,6 +264,9 @@ export const orchestrator = {
       transcriptionManager.setManagerState('running')
       transcriptionState.isActive = true
       transcriptionState.source = 'asr'
+
+      transcriptionManager.setCurrentStep(null)
+      broadcast({ type: 'transcription-progress', data: { step: '' } })
 
       return { success: true }
     } catch (e: unknown) {

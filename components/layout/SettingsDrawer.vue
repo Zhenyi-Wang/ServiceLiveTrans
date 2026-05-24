@@ -76,8 +76,10 @@ const paragraphLengthOptions = [50, 100, 150, 200, 250, 350]
                       type="checkbox"
                       :checked="configAutoScroll"
                       @change="
-                        $emit('toggleAutoScroll')
-                        configAutoScroll && $emit('scrollToBottom')
+                        () => {
+                          $emit('toggleAutoScroll')
+                          configAutoScroll && $emit('scrollToBottom')
+                        }
                       "
                     />
                     <span class="slider"></span>

@@ -31,7 +31,9 @@ export function useAudioCapture(options: AudioCaptureOptions) {
   const chunkDurationMs = options.chunkDurationMs ?? 100
 
   watch(volume, (v) => {
-    if (gainNode) gainNode.gain.value = v
+    if (gainNode && audioContext) {
+      gainNode.gain.setValueAtTime(v, audioContext.currentTime)
+    }
   })
 
   async function start() {
@@ -49,6 +51,9 @@ export function useAudioCapture(options: AudioCaptureOptions) {
 
       stream = await navigator.mediaDevices.getUserMedia({ audio: constraints })
       audioContext = new AudioContext()
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume()
+      }
       await audioContext.audioWorklet.addModule('/audio-worklet-processor.js')
 
       sourceNode = audioContext.createMediaStreamSource(stream)
@@ -58,7 +63,6 @@ export function useAudioCapture(options: AudioCaptureOptions) {
       analyserNode.value = analyser
 
       gainNode = audioContext.createGain()
-      gainNode.gain.value = volume.value
 
       workletNode = new AudioWorkletNode(audioContext, 'pcm-processor')
       workletNode.port.postMessage({
@@ -70,6 +74,9 @@ export function useAudioCapture(options: AudioCaptureOptions) {
       sourceNode.connect(gainNode)
       gainNode.connect(analyser)
       analyser.connect(workletNode)
+
+      // 连线完成后再设增益，避免 AudioContext 首帧渲染覆盖初始值
+      gainNode.gain.setValueAtTime(volume.value, audioContext.currentTime)
 
       workletNode.port.onmessage = (event) => {
         const base64 = arrayBufferToBase64(event.data.pcm)

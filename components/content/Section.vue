@@ -34,7 +34,6 @@ const emit = defineEmits<{
   scroll: [event: Event]
   'toggle-auto-scroll': []
   'scroll-to-bottom': []
-  'container-ref': [el: HTMLElement | null]
 }>()
 
 const welcomeMessage = computed(() => {
@@ -78,7 +77,6 @@ const sectionClasses = computed(() => ({
         :paragraphs="paragraphs"
         :font-size="fontSize"
         @scroll="emit('scroll', $event)"
-        @container-ref="emit('container-ref', $event)"
       />
 
       <!-- 当前输入 -->
