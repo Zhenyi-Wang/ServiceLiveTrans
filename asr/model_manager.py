@@ -63,19 +63,54 @@ class ModelManager:
             await self._current_model.stop()
             del self._current_model
             gc.collect()
-            try:
-                import torch
-
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
             self._current_model = None
             self._current_provider = None
+            # PyTorch empty_cache 仅清自身池，llama.cpp 的 ggml 用独立 CUDA allocator
+            # 必须 cudaDeviceReset 彻底释放本进程持有的所有 GPU 显存
+            self._reset_cuda_device()
 
     async def unload(self) -> None:
         async with self._lock:
             await self._unload_internal()
+
+    @staticmethod
+    def _reset_cuda_device() -> None:
+        """彻底释放本进程持有的所有 GPU 显存。
+
+        llama.cpp 的 ggml backend 使用独立 CUDA allocator，不受 PyTorch 管理。
+        empty_cache() 只能清 PyTorch 的内存池，必须 cudaDeviceReset 才能回收
+        ggml 分配的显存。"""
+        try:
+            import torch
+        except ImportError:
+            return
+        if not torch.cuda.is_available():
+            return
+        # 1. 清 PyTorch 内存池
+        torch.cuda.empty_cache()
+        # 2. 获取当前设备 ID
+        device_id = torch.cuda.current_device()
+        # 3. 通过 ctypes 调用 cudaDeviceReset 彻底释放 GPU 显存
+        #    cudaDeviceReset 销毁本进程的 CUDA primary context，释放所有显存
+        #    下次使用 CUDA 时 driver 会自动重建 context
+        try:
+            import ctypes
+            import ctypes.util
+
+            libname = ctypes.util.find_library("cudart")
+            if libname is None:
+                # 回退到 PyTorch 自带的 cudart
+                libname = "libcudart.so"
+            cudart = ctypes.CDLL(libname)
+            ret = cudart.cudaDeviceReset(ctypes.c_int(device_id))
+            if ret != 0:
+                logger.warning(f"cudaDeviceReset 返回 {ret}，显存可能未完全释放")
+            else:
+                logger.info(f"cudaDeviceReset(device={device_id}) 成功，GPU 显存已释放")
+        except OSError as e:
+            logger.warning(f"无法加载 cudart 库: {e}，跳过 DeviceReset")
+        except Exception as e:
+            logger.warning(f"cudaDeviceReset 失败: {e}")
 
     @property
     def is_loaded(self) -> bool:

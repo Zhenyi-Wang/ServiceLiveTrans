@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import http
 import json
 import logging
 import signal
 
 import websockets
 from websockets.asyncio.server import serve
+from websockets.datastructures import Headers
+from websockets.http11 import Response
 
 from asr.config import ASRConfig
 from asr.config_db import get_all, init_defaults, set_many
@@ -58,13 +59,13 @@ def get_health_data() -> dict:
     }
 
 
-async def health_handler(path, request_headers):
-    if path == "/health":
+async def health_handler(connection, request):
+    if request.path == "/health":
         body = json.dumps(get_health_data()).encode()
-        return (http.HTTPStatus.OK, [("Content-Type", "application/json")], body)
-    if path == "/config":
+        return Response(200, "OK", Headers([("Content-Type", "application/json")]), body)
+    if request.path == "/config":
         body = json.dumps(get_all()).encode()
-        return (http.HTTPStatus.OK, [("Content-Type", "application/json")], body)
+        return Response(200, "OK", Headers([("Content-Type", "application/json")]), body)
     return None
 
 

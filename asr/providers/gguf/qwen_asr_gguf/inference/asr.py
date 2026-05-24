@@ -1,5 +1,6 @@
 # coding=utf-8
 import os
+import gc
 import time
 import re
 import codecs
@@ -79,6 +80,25 @@ class QwenASREngine:
         self.ID_ASR_TEXT = self.model.token_to_id("<asr_text>")
 
     def shutdown(self):
+        """彻底释放 GPU 资源：模型权重、KV Cache、Compute Buffer、ONNX Session"""
+        if self.ctx is not None:
+            del self.ctx
+            self.ctx = None
+        if self.model is not None:
+            del self.model
+            self.model = None
+        if self.encoder is not None:
+            if hasattr(self.encoder, 'sess_fe'):
+                self.encoder.sess_fe = None
+            if hasattr(self.encoder, 'sess_be'):
+                self.encoder.sess_be = None
+            del self.encoder
+            self.encoder = None
+        if self.aligner is not None:
+            del self.aligner
+            self.aligner = None
+        self.embedding_table = None
+        gc.collect()
         if self.verbose: print("--- [QwenASR] 引擎已关闭 ---")
 
     def _build_prompt_embd(self, audio_embd: np.ndarray, prefix_text: str, context: Optional[str], language: Optional[str]):
