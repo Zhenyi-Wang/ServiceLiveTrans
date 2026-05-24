@@ -238,8 +238,18 @@ def bind_llama_lib():
         GGML_BASE_DLL = "libggml-base.so"
         LLAMA_DLL = "libllama.so"
 
-    # 设置 LD_LIBRARY_PATH 以便动态链接器找到依赖库
+    # 设置 LD_LIBRARY_PATH（对已运行进程无效，仅作辅助）
     os.environ["LD_LIBRARY_PATH"] = lib_dir + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
+
+    # 按依赖顺序显式加载：glibc 动态链接器在进程启动时缓存 LD_LIBRARY_PATH，
+    # 运行时 os.environ 修改不影响 dlopen() 的搜索路径。
+    # 必须先加载被依赖的库，使动态链接器在加载上层库时能找到已注册的 soname。
+    if sys.platform == "linux":
+        GGML_CPU_DLL = "libggml-cpu.so"
+        GGML_CUDA_DLL = "libggml-cuda.so"
+        ctypes.CDLL(os.path.join(lib_dir, GGML_BASE_DLL))
+        ctypes.CDLL(os.path.join(lib_dir, GGML_CPU_DLL))
+        ctypes.CDLL(os.path.join(lib_dir, GGML_CUDA_DLL))
 
     ggml = ctypes.CDLL(os.path.join(lib_dir, GGML_DLL))
     ggml_base = ctypes.CDLL(os.path.join(lib_dir, GGML_BASE_DLL))
