@@ -31,5 +31,9 @@ logs
 __pycache__/
 .ruff_cache/
 
+# SQLite databases
+server/data/*.db
+
 # Lint caches
 .eslintcache
+.worktrees
