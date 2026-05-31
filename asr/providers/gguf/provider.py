@@ -43,7 +43,7 @@ class GGUFProvider(ASRProvider):
 
         # 缓冲策略
         self.vad_max_buffer_sec = config.get("vad_max_buffer_sec", 10.0)
-        self.vad_min_buffer_sec = config.get("vad_min_buffer_sec", 1.5)
+        self.vad_min_buffer_sec = config.get("vad_min_buffer_sec", 5.0)
         self.vad_threshold = config.get("vad_threshold", 0.5)
         self.vad_silence_ms = config.get("vad_silence_ms", 700)
         self.sentence_min_len = config.get("sentence_min_len", 5)

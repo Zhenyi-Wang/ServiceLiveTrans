@@ -228,7 +228,7 @@ async def main():
         "memory_chunks": 2,
         "vad_threshold": 0.5,
         "vad_max_buffer_sec": 10.0,
-        "vad_min_buffer_sec": 1.5,
+        "vad_min_buffer_sec": 5.0,
         "vad_silence_ms": 700,
         "temperature": 0.4,
         "language": "Chinese",

@@ -71,7 +71,7 @@ const advancedSettings = ref({
   memoryChunks: 2,
   vadThreshold: 0.5,
   vadMaxBufferSec: 10.0,
-  vadMinBufferSec: 1.5,
+  vadMinBufferSec: 5.0,
   vadSilenceMs: 700,
   temperature: 0.4,
   language: 'Chinese',
@@ -813,12 +813,12 @@ onUnmounted(() => {
         <div class="form-row">
           <label class="form-label">最小缓冲 (秒)</label>
           <select v-model.number="advancedSettings.vadMinBufferSec" class="form-input">
-            <option :value="0.3">0.3</option>
-            <option :value="0.5">0.5</option>
-            <option :value="0.8">0.8</option>
             <option :value="1.0">1.0</option>
-            <option :value="1.5">1.5 (默认)</option>
             <option :value="2.0">2.0</option>
+            <option :value="3.0">3.0</option>
+            <option :value="5.0">5.0 (默认)</option>
+            <option :value="7.0">7.0</option>
+            <option :value="10.0">10.0</option>
           </select>
         </div>
 
