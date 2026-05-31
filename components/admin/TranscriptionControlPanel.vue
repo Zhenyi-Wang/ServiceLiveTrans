@@ -71,8 +71,8 @@ const advancedSettings = ref({
   memoryChunks: 2,
   vadThreshold: 0.5,
   vadMaxBufferSec: 10.0,
-  vadMinBufferSec: 0.5,
-  vadSilenceMs: 300,
+  vadMinBufferSec: 1.5,
+  vadSilenceMs: 700,
   temperature: 0.4,
   language: 'Chinese',
   sendPartial: false,
@@ -814,9 +814,11 @@ onUnmounted(() => {
           <label class="form-label">最小缓冲 (秒)</label>
           <select v-model.number="advancedSettings.vadMinBufferSec" class="form-input">
             <option :value="0.3">0.3</option>
-            <option :value="0.5">0.5 (默认)</option>
+            <option :value="0.5">0.5</option>
             <option :value="0.8">0.8</option>
             <option :value="1.0">1.0</option>
+            <option :value="1.5">1.5 (默认)</option>
+            <option :value="2.0">2.0</option>
           </select>
         </div>
 
@@ -824,9 +826,9 @@ onUnmounted(() => {
           <label class="form-label">静音检测 (ms)</label>
           <select v-model.number="advancedSettings.vadSilenceMs" class="form-input">
             <option :value="200">200</option>
-            <option :value="300">300 (默认)</option>
+            <option :value="300">300</option>
             <option :value="500">500</option>
-            <option :value="700">700</option>
+            <option :value="700">700 (默认)</option>
             <option :value="1000">1000</option>
           </select>
         </div>
@@ -870,7 +872,12 @@ onUnmounted(() => {
         </div>
 
         <div class="form-row">
-          <label class="form-label">最短句长</label>
+          <label class="form-label">
+            最短句长
+            <span style="font-size: 0.6rem; color: rgba(251, 191, 36, 0.7); letter-spacing: 0.05em"
+              >（暂未生效）</span
+            >
+          </label>
           <select v-model.number="advancedSettings.sentenceMinLen" class="form-input">
             <option :value="0">0</option>
             <option :value="3">3</option>

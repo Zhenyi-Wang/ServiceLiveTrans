@@ -42,12 +42,12 @@ class GGUFProvider(ASRProvider):
         self.send_partial = config.get("send_partial", False)
 
         # 缓冲策略
-        self.max_buffer_sec = config.get("vad_max_buffer_sec", 10.0)
-        self.min_buffer_sec = config.get("vad_min_buffer_sec", 0.5)
+        self.vad_max_buffer_sec = config.get("vad_max_buffer_sec", 10.0)
+        self.vad_min_buffer_sec = config.get("vad_min_buffer_sec", 1.5)
         self.vad_threshold = config.get("vad_threshold", 0.5)
-        self.silence_check_ms = config.get("vad_silence_ms", 300)
+        self.vad_silence_ms = config.get("vad_silence_ms", 700)
         self.sentence_min_len = config.get("sentence_min_len", 5)
-        self.overlap_sec = config.get("overlap_sec", 0.5)
+        self.overlap_sec = config.get("overlap_sec", 0.1)
 
         self._engine: Any = None
         self._vad_session = None
@@ -64,7 +64,11 @@ class GGUFProvider(ASRProvider):
         self._load_vad()
         self._is_running = True
         self._process_task = asyncio.create_task(self._process_loop())
-        logger.info(f"GGUF Provider 已启动 (model_dir={self.model_dir})")
+        logger.info(
+            f"GGUF Provider 已启动 (model_dir={self.model_dir}, "
+            f"vad_silence_ms={self.vad_silence_ms}, vad_min_buffer_sec={self.vad_min_buffer_sec}, "
+            f"overlap_sec={self.overlap_sec}, vad_threshold={self.vad_threshold})"
+        )
 
     def _load_vad(self) -> None:
         import onnxruntime as ort
@@ -163,9 +167,9 @@ class GGUFProvider(ASRProvider):
         consecutive_silence = 0
 
         while self._is_running:
-            max_buffer_samples = int(self.max_buffer_sec * SAMPLE_RATE)
-            min_buffer_samples = int(self.min_buffer_sec * SAMPLE_RATE)
-            silence_frames = int(self.silence_check_ms / 32)
+            max_buffer_samples = int(self.vad_max_buffer_sec * SAMPLE_RATE)
+            min_buffer_samples = int(self.vad_min_buffer_sec * SAMPLE_RATE)
+            silence_frames = int(self.vad_silence_ms / 32)
 
             try:
                 chunk = await asyncio.wait_for(self._audio_queue.get(), timeout=0.5)

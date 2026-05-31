@@ -8,6 +8,7 @@ import gc
 import logging
 import time
 
+from asr import config_db
 from asr.providers.base import ASRProvider
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,10 @@ def create_provider(provider: str, model_name: str, config_loader) -> ASRProvide
     if provider == "gguf":
         from asr.providers.gguf import GGUFProvider
 
-        return GGUFProvider(config_loader.gguf_config())
+        static_cfg = config_loader.gguf_config()
+        dynamic_cfg = config_db.get_all()
+        merged = {**static_cfg, **dynamic_cfg}
+        return GGUFProvider(merged)
     else:
         raise ValueError(f"Unknown provider: {provider}")
 

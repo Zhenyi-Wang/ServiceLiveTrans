@@ -224,21 +224,22 @@ async def result_forwarder(websocket):
 async def main():
     global manager
 
-    # 初始化 SQLite 默认配置
-    default_config = {
+    DEFAULT_DYNAMIC_CONFIG = {
         "overlap_sec": 0.1,
         "memory_chunks": 2,
         "vad_threshold": 0.5,
         "vad_max_buffer_sec": 10.0,
-        "vad_min_buffer_sec": 0.5,
-        "vad_silence_ms": 300,
+        "vad_min_buffer_sec": 1.5,
+        "vad_silence_ms": 700,
         "temperature": 0.4,
         "language": "Chinese",
         "send_partial": False,
         "sentence_min_len": 5,
         "rollback_num": 5,
     }
-    init_defaults(default_config)
+
+    # 初始化 SQLite 默认配置（INSERT OR IGNORE，不覆盖已有值）
+    init_defaults(DEFAULT_DYNAMIC_CONFIG)
     logger.info(f"配置已从 SQLite 加载: {get_all()}")
 
     manager = ModelManager(idle_timeout=config.idle_timeout, config_loader=config)
