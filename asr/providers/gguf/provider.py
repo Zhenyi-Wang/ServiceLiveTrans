@@ -169,7 +169,8 @@ class GGUFProvider(ASRProvider):
         while self._is_running:
             max_buffer_samples = int(self.vad_max_buffer_sec * SAMPLE_RATE)
             min_buffer_samples = int(self.vad_min_buffer_sec * SAMPLE_RATE)
-            silence_frames = int(self.vad_silence_ms / 32)
+            vad_frame_ms = VAD_CHUNK_SIZE * 1000 / SAMPLE_RATE
+            silence_frames = int(self.vad_silence_ms / vad_frame_ms)
 
             try:
                 chunk = await asyncio.wait_for(self._audio_queue.get(), timeout=0.5)
@@ -185,19 +186,22 @@ class GGUFProvider(ASRProvider):
             buffer_len = len(buffer)
 
             should_transcribe = False
+            cut_reason = ""
 
             if buffer_len >= max_buffer_samples:
-                # 长缓冲：扫描最后 2 秒找静音间隙，找不到则强制截断
-                scan_window = min(buffer_len, 2 * SAMPLE_RATE)
+                # 长缓冲：扫描找静音间隙，找不到则强制截断
+                scan_window = min(buffer_len, max(int(self.vad_max_buffer_sec * SAMPLE_RATE) // 2, 2 * SAMPLE_RATE))
                 gap_end = self._find_last_silence_gap(buffer[-scan_window:])
                 if gap_end is not None:
                     split = buffer_len - scan_window + gap_end
                     segment = buffer[:split].copy()
                     buffer = buffer[split:].copy()
+                    cut_reason = "max_buffer_gap"
                 else:
                     overlap_samples = int(self.overlap_sec * SAMPLE_RATE)
                     segment = buffer.copy()
                     buffer = buffer[-overlap_samples:].copy() if overlap_samples > 0 else np.array([], dtype=np.float32)
+                    cut_reason = "max_buffer_force"
                 should_transcribe = True
             elif buffer_len >= min_buffer_samples:
                 tail = buffer[-silence_frames * VAD_CHUNK_SIZE :]
@@ -216,22 +220,39 @@ class GGUFProvider(ASRProvider):
                         if consecutive_silence >= 2:
                             segment = buffer.copy()
                             buffer = np.array([], dtype=np.float32)
+                            cut_reason = "silence"
                             should_transcribe = True
 
             if should_transcribe:
-                logger.info(f"转录 {buffer_len / SAMPLE_RATE:.1f}s 音频")
+                seg_duration = len(segment) / SAMPLE_RATE
+                debug = {
+                    "cut_reason": cut_reason,
+                    "segment_sec": round(seg_duration, 2),
+                    "buffer_sec": round(buffer_len / SAMPLE_RATE, 2),
+                    "vad_silence_ms": self.vad_silence_ms,
+                    "vad_min_buffer_sec": self.vad_min_buffer_sec,
+                }
+                logger.info(f"转录 {seg_duration:.1f}s 音频 (原因={cut_reason}, 缓冲={buffer_len / SAMPLE_RATE:.1f}s)")
                 consecutive_silence = 0
                 self._reset_vad()
-                await self._transcribe_segment(segment)
+                await self._transcribe_segment(segment, debug)
 
         if len(buffer) > 0:
+            debug = {
+                "cut_reason": "remaining",
+                "segment_sec": round(len(buffer) / SAMPLE_RATE, 2),
+                "buffer_sec": round(len(buffer) / SAMPLE_RATE, 2),
+                "vad_silence_ms": self.vad_silence_ms,
+                "vad_min_buffer_sec": self.vad_min_buffer_sec,
+            }
             logger.info(f"处理剩余 {len(buffer) / SAMPLE_RATE:.1f}s 音频")
-            await self._transcribe_segment(buffer)
+            await self._transcribe_segment(buffer, debug)
 
     def _find_last_silence_gap(self, audio: np.ndarray) -> int | None:
         """扫描音频，找到最后一个静音间隙的结束位置（样本偏移量）。
-        静音间隙定义：连续 >= 200ms 的帧概率低于阈值。返回 None 表示没有找到。"""
-        min_gap_frames = max(int(200 / 32), 3)  # 至少 200ms
+        静音间隙定义：连续 >= vad_silence_ms 的帧概率低于阈值。返回 None 表示没有找到。"""
+        vad_frame_ms = VAD_CHUNK_SIZE * 1000 / SAMPLE_RATE
+        min_gap_frames = max(int(self.vad_silence_ms / vad_frame_ms), 3)
         aligned_len = (len(audio) // VAD_CHUNK_SIZE) * VAD_CHUNK_SIZE
         if aligned_len == 0:
             return None
@@ -266,7 +287,7 @@ class GGUFProvider(ASRProvider):
 
         return None
 
-    async def _transcribe_segment(self, segment: np.ndarray) -> None:
+    async def _transcribe_segment(self, segment: np.ndarray, debug: dict | None = None) -> None:
         if self._engine is None or self._loop is None:
             return
 
@@ -310,6 +331,6 @@ class GGUFProvider(ASRProvider):
             audio_feature, text = await self._loop.run_in_executor(self._thread_pool, _run_blocking)
             self._asr_memory.append((audio_feature, text))
             if text.strip():
-                self._emit(ASRResult(type="final", text=text, language="zh"))
+                self._emit(ASRResult(type="final", text=text, language="zh", debug=debug))
         except Exception as e:
             logger.error(f"GGUF 推理错误: {e}")

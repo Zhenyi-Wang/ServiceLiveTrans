@@ -15,7 +15,8 @@ export default defineEventHandler((event) => {
     const lines = subtitles.map((s) => {
       const display = s.optimizedText || s.text
       const ts = new Date(s.timestamp).toLocaleTimeString('zh-CN')
-      return `[${ts}] ${display}${s.enText ? `\n         ${s.enText}` : ''}`
+      const debugTag = s.debug ? ` [${s.debug.cut_reason} ${s.debug.segment_sec}s]` : ''
+      return `[${ts}]${debugTag} ${display}${s.enText ? `\n         ${s.enText}` : ''}`
     })
     setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8')
     return lines.join('\n')

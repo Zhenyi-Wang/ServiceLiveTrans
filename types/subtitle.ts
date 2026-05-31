@@ -28,6 +28,14 @@ export interface ConfirmedSubtitle {
   enText?: string
   /** 创建时间戳 */
   timestamp: number
+  /** 分段调试信息（仅开发环境） */
+  debug?: {
+    cut_reason: string
+    segment_sec: number
+    buffer_sec: number
+    vad_silence_ms: number
+    vad_min_buffer_sec: number
+  }
 }
 
 /**

@@ -29,6 +29,7 @@ class ASRResult:
     type: Literal["partial", "final"]
     text: str
     language: Literal["zh", "en"]
+    debug: dict | None = None
 
 
 # --- Nuxt → Python ---

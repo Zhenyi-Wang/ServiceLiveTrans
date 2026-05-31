@@ -210,10 +210,9 @@ async def result_forwarder(websocket):
     try:
         while True:
             result = await result_queue.get()
-            if result.type == "partial":
-                msg = {"type": "partial", "text": result.text, "language": result.language}
-            else:
-                msg = {"type": "final", "text": result.text, "language": result.language}
+            msg: dict = {"type": result.type, "text": result.text, "language": result.language}
+            if result.debug is not None:
+                msg["debug"] = result.debug
             await websocket.send(json.dumps(msg))
     except websockets.ConnectionClosed:
         pass

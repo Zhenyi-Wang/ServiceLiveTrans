@@ -70,7 +70,12 @@ function sendAudioChunkToASR(base64Pcm: string): boolean {
 
 // === ASR 结果处理 ===
 
-function processResult(result: { type: string; text: string; language: string }): void {
+function processResult(result: {
+  type: string
+  text: string
+  language: string
+  debug?: Record<string, unknown>
+}): void {
   if (result.type === 'partial') {
     partialVersion++
     const data: WSCurrentData = {
@@ -103,6 +108,7 @@ function processResult(result: { type: string; text: string; language: string })
       id,
       text: result.text,
       timestamp: Date.now(),
+      ...(result.debug ? { debug: result.debug } : {}),
     })
     processAI(result.text).then((ai) => {
       broadcast({
