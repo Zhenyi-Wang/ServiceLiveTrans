@@ -118,6 +118,11 @@ Nuxt Server
 - `/api/ai/config` — AI 配置
 - `/api/transcription/start|stop|audio-start|audio-stop|recognition-start|recognition-stop|switch-source` — 转录生命周期控制
 
+**开发调试 API**（`server/routes/devapi/`，仅 `import.meta.dev` 生效，生产环境返回 404）：
+
+- `/devapi/state` — 完整转录状态（当前字幕 + 所有已确认字幕 + 连接数）
+- `/devapi/subtitles` — 已确认字幕列表；`?format=text` 返回纯文本格式
+
 ### 转录编排器（核心状态机）
 
 `server/utils/transcription-orchestrator.ts` 是转录流程的核心控制器：
