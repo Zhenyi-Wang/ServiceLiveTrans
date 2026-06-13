@@ -165,7 +165,6 @@ const handleClear = async () => {
 // 当前延迟值
 
 // 状态更新（模拟器操作后手动调用）
-const devToolsOpen = ref(false)
 
 // 当前延迟值
 const currentDelay = ref(2000)
@@ -276,34 +275,9 @@ onUnmounted(() => {
         <!-- AI 控制面板 -->
         <AdminAIControlPanel />
 
-        <!-- 开发测试工具（折叠） -->
+        <!-- 开发测试工具 -->
         <div class="dev-tools-section">
-          <button class="dev-tools-toggle" @click="devToolsOpen = !devToolsOpen">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              class="toggle-icon"
-            >
-              <path
-                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-              />
-            </svg>
-            <span class="toggle-title">开发工具</span>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              class="toggle-arrow"
-              :class="{ open: devToolsOpen }"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-
-          <div v-show="devToolsOpen" class="dev-tools-content">
+          <div class="dev-tools-content">
             <!-- 模拟控制 -->
             <AdminControlPanel
               :is-running="isRunning"
@@ -820,51 +794,6 @@ onUnmounted(() => {
   .dev-tools-section {
     grid-column: span 1;
   }
-}
-
-.dev-tools-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 1rem 1.25rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px dashed rgba(56, 189, 248, 0.25);
-  border-radius: 12px;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.dev-tools-toggle:hover {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(56, 189, 248, 0.4);
-  color: #94a3b8;
-}
-
-.toggle-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-.toggle-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  flex: 1;
-}
-
-.toggle-arrow {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  transition: transform 0.3s ease;
-}
-
-.toggle-arrow.open {
-  transform: rotate(180deg);
 }
 
 .dev-tools-content {
