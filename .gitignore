@@ -31,8 +31,9 @@ logs
 __pycache__/
 .ruff_cache/
 
-# SQLite databases
-server/data/*.db
+# SQLite databases (runtime data + WAL sidecar files)
+server/data/
+asr/data/
 
 # Lint caches
 .eslintcache
